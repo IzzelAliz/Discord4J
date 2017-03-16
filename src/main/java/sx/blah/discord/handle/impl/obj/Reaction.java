@@ -106,13 +106,13 @@ public class Reaction implements IReaction {
 			users.clear();
 
 			int gottenSoFar = 0;
-			String emoji = isCustomEmoji() ? (getCustomEmoji().getName() + ":" + getCustomEmoji().getID()) : this.emoji;
-			String userAfter = null;
+			String emoji = isCustomEmoji() ? (getCustomEmoji().getName() + ":" + getCustomEmoji().getStringID()) : this.emoji;
+			Long userAfter = null;
 			while (gottenSoFar < count) {
 				ReactionUserObject[] userObjs = ((DiscordClientImpl) getClient()).REQUESTS.GET.makeRequest(
-						String.format(DiscordEndpoints.REACTIONS_USER_LIST, message.getChannel().getID(), message.getID(), emoji),
+						String.format(DiscordEndpoints.REACTIONS_USER_LIST, message.getChannel().getStringID(), message.getStringID(), emoji),
 						ReactionUserObject[].class,
-						new BasicNameValuePair("after", userAfter));
+						new BasicNameValuePair("after", userAfter == null ? null : Long.toUnsignedString(userAfter)));
 
 				if (userObjs.length == 0)
 					break;
@@ -120,13 +120,13 @@ public class Reaction implements IReaction {
 				gottenSoFar += userObjs.length;
 
 				for (ReactionUserObject obj : userObjs) {
-					IUser u = getClient().getUserByID(obj.id);
+					IUser u = getClient().getUserByID(obj.getLongID());
 
 					if (u != null) {
 						users.add(u);
 					}
 
-					userAfter = obj.id;
+					userAfter = obj.getLongID();
 				}
 			}
 		}

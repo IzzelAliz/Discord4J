@@ -19,7 +19,7 @@ import java.util.Objects;
 
 public class Webhook implements IWebhook {
 
-	protected final String id;
+	protected final long id;
 	protected final IDiscordClient client;
 	protected final IChannel channel;
 	protected final IUser author;
@@ -27,7 +27,7 @@ public class Webhook implements IWebhook {
 	protected volatile String avatar;
 	protected final String token;
 
-	public Webhook(IDiscordClient client, String name, String id, IChannel channel, IUser author, String avatar, String token) {
+	public Webhook(IDiscordClient client, String name, long id, IChannel channel, IUser author, String avatar, String token) {
 		this.client = client;
 		this.name = name;
 		this.id = id;
@@ -36,12 +36,12 @@ public class Webhook implements IWebhook {
 		this.avatar = avatar;
 		this.token = token;
 	}
-
+	
 	@Override
-	public String getID() {
+	public long getLongID() {
 		return id;
 	}
-
+	
 	@Override
 	public IDiscordClient getClient() {
 		return client;
@@ -91,7 +91,7 @@ public class Webhook implements IWebhook {
 		DiscordUtils.checkPermissions(client, channel, EnumSet.of(Permissions.MANAGE_WEBHOOKS));
 
 		WebhookObject response = ((DiscordClientImpl) client).REQUESTS.PATCH.makeRequest(
-				DiscordEndpoints.WEBHOOKS + id,
+				DiscordEndpoints.WEBHOOKS + getStringID(),
 				new WebhookEditRequest(name, avatar),
 				WebhookObject.class);
 
@@ -138,7 +138,7 @@ public class Webhook implements IWebhook {
 	public void delete() throws DiscordException, RateLimitException, MissingPermissionsException {
 		DiscordUtils.checkPermissions(client, channel, EnumSet.of(Permissions.MANAGE_WEBHOOKS));
 
-		((DiscordClientImpl) client).REQUESTS.DELETE.makeRequest(DiscordEndpoints.WEBHOOKS + id);
+		((DiscordClientImpl) client).REQUESTS.DELETE.makeRequest(DiscordEndpoints.WEBHOOKS + getStringID());
 	}
 
 	@Override

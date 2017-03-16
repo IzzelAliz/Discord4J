@@ -15,18 +15,10 @@ import sx.blah.discord.handle.impl.events.ShardReadyEvent;
 import sx.blah.discord.handle.impl.obj.User;
 import sx.blah.discord.handle.obj.*;
 import sx.blah.discord.modules.ModuleLoader;
-import sx.blah.discord.util.DiscordException;
-import sx.blah.discord.util.Image;
-import sx.blah.discord.util.LogMarkers;
-import sx.blah.discord.util.RateLimitException;
-import sx.blah.discord.util.RequestBuilder;
+import sx.blah.discord.util.*;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -233,6 +225,16 @@ public final class DiscordClientImpl implements IDiscordClient {
 		}
 		return null;
 	}
+	
+	@Override
+	public long getApplicationClientLongID() throws DiscordException {
+		try {
+			return Long.parseUnsignedLong(getApplicationInfo().id);
+		} catch (RateLimitException e) {
+			Discord4J.LOGGER.error(LogMarkers.API, "Discord4J Internal Exception", e);
+		}
+		return 0;
+	}
 
 	@Override
 	public String getApplicationName() throws DiscordException {
@@ -249,7 +251,7 @@ public final class DiscordClientImpl implements IDiscordClient {
 		try {
 			UserObject owner = getApplicationInfo().owner;
 
-			IUser user = getUserByID(owner.id);
+			IUser user = getUserByID(owner.getLongID());
 			if (user == null)
 				user = DiscordUtils.getUserFromJSON(getShards().get(0), owner);
 
@@ -264,7 +266,7 @@ public final class DiscordClientImpl implements IDiscordClient {
 		String gateway = null;
 		try {
 			GatewayResponse response = REQUESTS.GET.makeRequest(DiscordEndpoints.GATEWAY, GatewayResponse.class);
-			gateway = response.url + "?encoding=json&v=5";
+			gateway = response.url + "?encoding=etf&v=5";
 		} catch (RateLimitException | DiscordException e) {
 			Discord4J.LOGGER.error(LogMarkers.API, "Discord4J Internal Exception", e);
 		}
@@ -290,7 +292,7 @@ public final class DiscordClientImpl implements IDiscordClient {
 		new RequestBuilder(this).setAsync(true).doAction(() -> {
 			for (int i = 0; i < shardCount; i++) {
 				final int shardNum = i;
-				ShardImpl shard = new ShardImpl(this, gateway, new int[] {shardNum, shardCount});
+				ShardImpl shard = new ShardImpl(this, gateway, shardNum, shardCount);
 				getShards().add(shardNum, shard);
 				shard.login();
 
@@ -393,6 +395,13 @@ public final class DiscordClientImpl implements IDiscordClient {
 				.filter(g -> g.getID().equals(guildID))
 				.findFirst().orElse(null);
 	}
+	
+	@Override
+	public IGuild getGuildByID(long guildID) {
+		return getGuilds().stream()
+				.filter(g -> g.getLongID() == guildID)
+				.findFirst().orElse(null);
+	}
 
 	@Override
 	public List<IChannel> getChannels(boolean includePrivate) {
@@ -416,6 +425,13 @@ public final class DiscordClientImpl implements IDiscordClient {
 				.filter(c -> c.getID().equals(channelID))
 				.findFirst().orElse(null);
 	}
+	
+	@Override
+	public IChannel getChannelByID(long channelID) {
+		return getChannels(true).stream()
+				.filter(c -> c.getLongID() == channelID)
+				.findFirst().orElse(null);
+	}
 
 	@Override
 	public List<IVoiceChannel> getVoiceChannels() {
@@ -436,6 +452,13 @@ public final class DiscordClientImpl implements IDiscordClient {
 				.filter(vc -> vc.getID().equals(id))
 				.findFirst().orElse(null);
 	}
+	
+	@Override
+	public IVoiceChannel getVoiceChannelByID(long id) {
+		return getVoiceChannels().stream()
+				.filter(vc -> vc.getLongID() == id)
+				.findFirst().orElse(null);
+	}
 
 	@Override
 	public List<IUser> getUsers() {
@@ -451,6 +474,13 @@ public final class DiscordClientImpl implements IDiscordClient {
 				.filter(u -> u.getID().equals(userID))
 				.findFirst().orElse(null);
 	}
+	
+	@Override
+	public IUser getUserByID(long userID) {
+		return getUsers().stream()
+				.filter(u -> u.getLongID() == userID)
+				.findFirst().orElse(null);
+	}
 
 	@Override
 	public List<IRole> getRoles() {
@@ -464,6 +494,13 @@ public final class DiscordClientImpl implements IDiscordClient {
 	public IRole getRoleByID(String roleID) {
 		return getRoles().stream()
 				.filter(r -> r.getID().equals(roleID))
+				.findFirst().orElse(null);
+	}
+	
+	@Override
+	public IRole getRoleByID(long roleID) {
+		return getRoles().stream()
+				.filter(r -> r.getLongID() == roleID)
 				.findFirst().orElse(null);
 	}
 
@@ -487,6 +524,13 @@ public final class DiscordClientImpl implements IDiscordClient {
 	public IMessage getMessageByID(String messageID) {
 		return getMessages(true).stream()
 				.filter(m -> m.getID().equals(messageID))
+				.findFirst().orElse(null);
+	}
+	
+	@Override
+	public IMessage getMessageByID(long messageID) {
+		return getMessages(true).stream()
+				.filter(m -> m.getLongID() == messageID)
 				.findFirst().orElse(null);
 	}
 

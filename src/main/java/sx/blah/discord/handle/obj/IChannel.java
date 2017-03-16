@@ -114,7 +114,7 @@ public interface IChannel extends IDiscordObject<IChannel> {
 	 * @return The messages.
 	 */
 	MessageHistory getMessageHistoryIn(LocalDateTime startDate, LocalDateTime endDate, int maxMessageCount);
-
+	
 	/**
 	 * Gets the messages from a specified message id to the beginning of this channel.
 	 * NOTE: This can block the current thread if messages need to be requested from Discord instead of fetched from
@@ -122,8 +122,20 @@ public interface IChannel extends IDiscordObject<IChannel> {
 	 *
 	 * @param id The id to start gathering messages from (inclusive).
 	 * @return The messages.
+	 * @deprecated Use {@link #getMessageHistoryFrom(long)}
 	 */
+	@Deprecated
 	MessageHistory getMessageHistoryFrom(String id);
+	
+	/**
+	 * Gets the messages from a specified message id to the beginning of this channel.
+	 * NOTE: This can block the current thread if messages need to be requested from Discord instead of fetched from
+	 * the internal cache.
+	 *
+	 * @param id The id to start gathering messages from (inclusive).
+	 * @return The messages.
+	 */
+	MessageHistory getMessageHistoryFrom(long id);
 
 	/**
 	 * Gets the messages from a specified message id to the beginning of this channel.
@@ -133,8 +145,21 @@ public interface IChannel extends IDiscordObject<IChannel> {
 	 * @param id The id to start gathering messages from (inclusive).
 	 * @param maxMessageCount The max number of messages to retrieve.
 	 * @return The messages.
+	 * @deprecated Use {@link #getMessageHistoryFrom(long, int)}
 	 */
+	@Deprecated
 	MessageHistory getMessageHistoryFrom(String id, int maxMessageCount);
+	
+	/**
+	 * Gets the messages from a specified message id to the beginning of this channel.
+	 * NOTE: This can block the current thread if messages need to be requested from Discord instead of fetched from
+	 * the internal cache.
+	 *
+	 * @param id The id to start gathering messages from (inclusive).
+	 * @param maxMessageCount The max number of messages to retrieve.
+	 * @return The messages.
+	 */
+	MessageHistory getMessageHistoryFrom(long id, int maxMessageCount);
 
 	/**
 	 * Gets the messages from now up until the specified message id.
@@ -143,8 +168,20 @@ public interface IChannel extends IDiscordObject<IChannel> {
 	 *
 	 * @param id The id to stop gathering messages at (inclusive).
 	 * @return The messages.
+	 * @deprecated Use {@link #getMessageHistoryTo(long)}
 	 */
+	@Deprecated
 	MessageHistory getMessageHistoryTo(String id);
+	
+	/**
+	 * Gets the messages from now up until the specified message id.
+	 * NOTE: This can block the current thread if messages need to be requested from Discord instead of fetched from
+	 * the internal cache.
+	 *
+	 * @param id The id to stop gathering messages at (inclusive).
+	 * @return The messages.
+	 */
+	MessageHistory getMessageHistoryTo(long id);
 
 	/**
 	 * Gets the messages from now up until the specified message id.
@@ -154,8 +191,21 @@ public interface IChannel extends IDiscordObject<IChannel> {
 	 * @param id The id to stop gathering messages at (inclusive).
 	 * @param maxMessageCount The max number of messages to retrieve.
 	 * @return The messages.
+	 * @deprecated Use {@link #getMessageHistoryTo(long, int)}
 	 */
+	@Deprecated
 	MessageHistory getMessageHistoryTo(String id, int maxMessageCount);
+	
+	/**
+	 * Gets the messages from now up until the specified message id.
+	 * NOTE: This can block the current thread if messages need to be requested from Discord instead of fetched from
+	 * the internal cache.
+	 *
+	 * @param id The id to stop gathering messages at (inclusive).
+	 * @param maxMessageCount The max number of messages to retrieve.
+	 * @return The messages.
+	 */
+	MessageHistory getMessageHistoryTo(long id, int maxMessageCount);
 
 	/**
 	 * Gets the messages in the specified range of message ids.
@@ -165,8 +215,21 @@ public interface IChannel extends IDiscordObject<IChannel> {
 	 * @param beginID The id to start gathering messages from (inclusive).
 	 * @param endID The id to stop gathering messages at (inclusive).
 	 * @return The messages.
+	 * @deprecated Use {@link #getMessageHistoryIn(long, long)}
 	 */
+	@Deprecated
 	MessageHistory getMessageHistoryIn(String beginID, String endID);
+	
+	/**
+	 * Gets the messages in the specified range of message ids.
+	 * NOTE: This can block the current thread if messages need to be requested from Discord instead of fetched from
+	 * the internal cache.
+	 *
+	 * @param beginID The id to start gathering messages from (inclusive).
+	 * @param endID The id to stop gathering messages at (inclusive).
+	 * @return The messages.
+	 */
+	MessageHistory getMessageHistoryIn(long beginID, long endID);
 
 	/**
 	 * Gets the messages in the specified range of message ids.
@@ -177,8 +240,22 @@ public interface IChannel extends IDiscordObject<IChannel> {
 	 * @param endID The id to stop gathering messages at (inclusive).
 	 * @param maxMessageCount The max number of messages to retrieve.
 	 * @return The messages.
+	 * @deprecated Use {@link #getMessageHistoryIn(long, long, int)}
 	 */
+	@Deprecated
 	MessageHistory getMessageHistoryIn(String beginID, String endID, int maxMessageCount);
+	
+	/**
+	 * Gets the messages in the specified range of message ids.
+	 * NOTE: This can block the current thread if messages need to be requested from Discord instead of fetched from
+	 * the internal cache.
+	 *
+	 * @param beginID The id to start gathering messages from (inclusive).
+	 * @param endID The id to stop gathering messages at (inclusive).
+	 * @param maxMessageCount The max number of messages to retrieve.
+	 * @return The messages.
+	 */
+	MessageHistory getMessageHistoryIn(long beginID, long endID, int maxMessageCount);
 
 	/**
 	 * This attempts to get ALL messages in the channel.
@@ -231,9 +308,19 @@ public interface IChannel extends IDiscordObject<IChannel> {
 	 *
 	 * @param messageID The message id.
 	 * @return The message (if found).
+	 * @deprecated Use {@link #getMessageByID(long)}
 	 */
+	@Deprecated
 	IMessage getMessageByID(String messageID);
-
+	
+	/**
+	 * Gets a specific message by its id.
+	 *
+	 * @param messageID The message id.
+	 * @return The message (if found).
+	 */
+	IMessage getMessageByID(long messageID);
+	
 	/**
 	 * Gets the guild this channel is a part of.
 	 *
@@ -564,14 +651,14 @@ public interface IChannel extends IDiscordObject<IChannel> {
 	 *
 	 * @return The user permissions overrides for this channel.
 	 */
-	Map<String, PermissionOverride> getUserOverrides();
+	Map<Long, PermissionOverride> getUserOverrides();
 
 	/**
 	 * Gets the permissions overrides for roles. (Key = Role id).
 	 *
 	 * @return The role permissions overrides for this channel.
 	 */
-	Map<String, PermissionOverride> getRoleOverrides();
+	Map<Long, PermissionOverride> getRoleOverrides();
 
 	/**
 	 * Gets the permissions available for a user with all permission overrides taken into account.
@@ -699,8 +786,18 @@ public interface IChannel extends IDiscordObject<IChannel> {
 	 *
 	 * @param id The webhook id.
 	 * @return The webhook or null if not found.
+	 * @deprecated Use {@link #getWebhookByID(long)}
 	 */
+	@Deprecated
 	IWebhook getWebhookByID(String id);
+	
+	/**
+	 * This gets a webhook by its id.
+	 *
+	 * @param id The webhook id.
+	 * @return The webhook or null if not found.
+	 */
+	IWebhook getWebhookByID(long id);
 
 	/**
 	 * This finds all the webhooks which have the same name as the provided one.

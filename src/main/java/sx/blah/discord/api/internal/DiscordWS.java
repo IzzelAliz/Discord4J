@@ -1,8 +1,9 @@
 package sx.blah.discord.api.internal;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.commons.io.IOUtils;
+import com.austinv11.etf.common.TermTypes;
+import com.austinv11.etf.erlang.ErlangMap;
+import com.austinv11.etf.parsing.ETFParser;
+import com.austinv11.etf.writing.ETFWriter;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.api.WebSocketAdapter;
@@ -10,21 +11,17 @@ import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
 import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.IShard;
-import sx.blah.discord.api.internal.json.GatewayPayload;
-import sx.blah.discord.api.internal.json.requests.IdentifyRequest;
-import sx.blah.discord.api.internal.json.requests.ResumeRequest;
+import sx.blah.discord.api.internal.etf.GatewayPayload;
+import sx.blah.discord.api.internal.etf.IdentifyRequest;
+import sx.blah.discord.api.internal.etf.ResumeRequest;
 import sx.blah.discord.handle.impl.events.DisconnectedEvent;
+import sx.blah.discord.util.DiscordException;
 import sx.blah.discord.util.LogMarkers;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.URI;
 import java.nio.channels.UnresolvedAddressException;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
-import java.util.zip.InflaterInputStream;
 
 public class DiscordWS extends WebSocketAdapter {
 
@@ -62,60 +59,7 @@ public class DiscordWS extends WebSocketAdapter {
 
 	@Override
 	public void onWebSocketText(String message) {
-		try {
-			if (Discord4J.LOGGER.isTraceEnabled(LogMarkers.WEBSOCKET_TRAFFIC)) {
-				Discord4J.LOGGER.trace(LogMarkers.WEBSOCKET_TRAFFIC, "Received: " + message);
-			}
-
-			JsonNode json = DiscordUtils.MAPPER.readTree(message);
-			GatewayOps op = GatewayOps.get(json.get("op").asInt());
-			JsonNode d = json.has("d") && !json.get("d").isNull() ? json.get("d") : null;
-
-			if (json.has("s") && !json.get("s").isNull()) seq = json.get("s").longValue();
-
-			switch (op) {
-				case HELLO:
-					Discord4J.LOGGER.trace(LogMarkers.WEBSOCKET, "Shard {} _trace: {}", shard.getInfo()[0], d.get("_trace").toString());
-
-					heartbeatHandler.begin(d.get("heartbeat_interval").intValue());
-					if (this.state != State.RESUMING) {
-						send(GatewayOps.IDENTIFY, new IdentifyRequest(client.getToken(), shard.getInfo()));
-					} else {
-						client.reconnectManager.onReconnectSuccess();
-						send(GatewayOps.RESUME, new ResumeRequest(client.getToken(), sessionId, seq));
-					}
-					break;
-				case RECONNECT:
-					this.state = State.RESUMING;
-					client.getDispatcher().dispatch(new DisconnectedEvent(DisconnectedEvent.Reason.RECONNECT_OP, shard));
-					heartbeatHandler.shutdown();
-					send(GatewayOps.RESUME, new ResumeRequest(client.getToken(), sessionId, seq));
-					break;
-				case DISPATCH:
-					try {
-						dispatchHandler.handle(json);
-					} catch (Exception e) {
-						Discord4J.LOGGER.error(LogMarkers.WEBSOCKET, "Discord4J Internal Exception", e);
-					}
-					break;
-				case INVALID_SESSION:
-					this.state = State.RECONNECTING;
-					client.getDispatcher().dispatch(new DisconnectedEvent(DisconnectedEvent.Reason.INVALID_SESSION_OP, shard));
-					invalidate();
-					send(GatewayOps.IDENTIFY, new IdentifyRequest(client.getToken(), shard.getInfo()));
-					break;
-				case HEARTBEAT:
-					send(GatewayOps.HEARTBEAT, seq);
-				case HEARTBEAT_ACK:
-					heartbeatHandler.ack();
-					break;
-				case UNKNOWN:
-					Discord4J.LOGGER.debug(LogMarkers.WEBSOCKET, "Received unknown opcode, {}", message);
-					break;
-			}
-		} catch (IOException e) {
-			Discord4J.LOGGER.error(LogMarkers.WEBSOCKET, "JSON Parsing exception!", e);
-		}
+		throw new DiscordException("Discord sent us a string, please report this!");
 	}
 
 	@Override
@@ -153,15 +97,83 @@ public class DiscordWS extends WebSocketAdapter {
 			client.reconnectManager.onReconnectError();
 		}
 	}
+	
+	//TODO remove
+	private void printToUnsigned(byte[] data) {
+		int[] unsignedStuff = new int[data.length];
+		for (int i = 0; i < data.length; i++)
+			unsignedStuff[i] = Byte.toUnsignedInt(data[i]);
+		System.out.println(Arrays.toString(unsignedStuff));
+	}
 
 	@Override
 	public void onWebSocketBinary(byte[] payload, int offset, int len) {
-		BufferedReader reader = new BufferedReader(new InputStreamReader(new InflaterInputStream(new ByteArrayInputStream(payload, offset, len))));
-		onWebSocketText(reader.lines().collect(Collectors.joining()));
 		try {
-			reader.close();
-		} catch (IOException e) {
-			Discord4J.LOGGER.error(LogMarkers.WEBSOCKET, "Encountered websocket error: ", e);
+			payload = Arrays.copyOfRange(payload, offset, offset+len-1);
+			printToUnsigned(payload);
+			ETFParser parser = (payload[1] == TermTypes.MAP_EXT ? DiscordUtils.PARTIAL_ETF_CONFIG : DiscordUtils.FULL_ETF_CONFIG).createParser(payload);
+			payload = parser.getRawData();
+			printToUnsigned(payload);
+			
+			while (parser.peek() != TermTypes.MAP_EXT)
+				parser.next();
+			
+			ErlangMap map = parser.nextMap();
+			
+			if (Discord4J.LOGGER.isTraceEnabled(LogMarkers.WEBSOCKET_TRAFFIC)) {
+				Discord4J.LOGGER.trace(LogMarkers.WEBSOCKET_TRAFFIC, "Received: " + map.toString());
+			}
+			
+			GatewayOps op = GatewayOps.get(map.getInt("op"));
+			ErlangMap d = map.containsKey("d") ? map.getErlangMap("d") : null;
+			
+			if (map.containsKey("s") && map.get("s") != null) {
+				seq = map.getInt("s");
+			}
+			
+			switch (op) {
+				case HELLO:
+					if (Discord4J.LOGGER.isTraceEnabled(LogMarkers.WEBSOCKET))
+						Discord4J.LOGGER.trace(LogMarkers.WEBSOCKET, "Shard {} _trace: {}", shard.getShardNumber(), d.getErlangList("_trace"));
+					
+					heartbeatHandler.begin(d.getInt("heartbeat_interval"));
+					if (this.state != State.RESUMING) {
+						send(GatewayOps.IDENTIFY, new IdentifyRequest(client.getToken(), new int[]{shard.getShardNumber(), shard.getTotalShardCount()}));
+					} else {
+						client.reconnectManager.onReconnectSuccess();
+						send(GatewayOps.RESUME, new ResumeRequest(client.getToken(), sessionId, seq));
+					}
+					break;
+				case RECONNECT:
+					this.state = State.RESUMING;
+					client.getDispatcher().dispatch(new DisconnectedEvent(DisconnectedEvent.Reason.RECONNECT_OP, shard));
+					heartbeatHandler.shutdown();
+					send(GatewayOps.RESUME, new ResumeRequest(client.getToken(), sessionId, seq));
+					break;
+				case DISPATCH:
+					try {
+						dispatchHandler.handle(payload);
+					} catch (Exception e) {
+						Discord4J.LOGGER.error(LogMarkers.WEBSOCKET, "Discord4J Internal Exception", e);
+					}
+					break;
+				case INVALID_SESSION:
+					this.state = State.RECONNECTING;
+					client.getDispatcher().dispatch(new DisconnectedEvent(DisconnectedEvent.Reason.INVALID_SESSION_OP, shard));
+					invalidate();
+					send(GatewayOps.IDENTIFY, new IdentifyRequest(client.getToken(), new int[]{shard.getShardNumber(), shard.getTotalShardCount()}));
+					break;
+				case HEARTBEAT:
+					send(GatewayOps.HEARTBEAT, seq);
+				case HEARTBEAT_ACK:
+					heartbeatHandler.ack();
+					break;
+				case UNKNOWN:
+					Discord4J.LOGGER.debug(LogMarkers.WEBSOCKET, "Received unknown opcode, {}", map.getInt("op"));
+					break;
+			}
+		} catch (Exception e) {
+			Discord4J.LOGGER.error(LogMarkers.WEBSOCKET, "ETF Parsing exception!", e);
 		}
 	}
 
@@ -218,21 +230,19 @@ public class DiscordWS extends WebSocketAdapter {
 	}
 
 	public void send(GatewayPayload payload) {
-		try {
-			send(DiscordUtils.MAPPER.writeValueAsString(payload));
-		} catch (JsonProcessingException e) {
-			Discord4J.LOGGER.error(LogMarkers.WEBSOCKET, "JSON Parsing exception!", e);
-		}
+		send(DiscordUtils.PARTIAL_ETF_CONFIG.createWriter().writeMap(payload));
 	}
 
-	public void send(String message) {
-		String filteredMessage = message.replace(client.getToken(), "hunter2");
-
+	public void send(ETFWriter message) {
+//		String filteredMessage = message.replace(client.getToken(), "hunter2");
 		if (getSession() != null && getSession().isOpen()) {
-			Discord4J.LOGGER.trace(LogMarkers.WEBSOCKET_TRAFFIC, "Sending: " + filteredMessage);
-			getSession().getRemote().sendStringByFuture(message);
+			if (Discord4J.LOGGER.isTraceEnabled(LogMarkers.WEBSOCKET_TRAFFIC))
+				Discord4J.LOGGER.trace(LogMarkers.WEBSOCKET_TRAFFIC, "Sending: " + DiscordUtils.PARTIAL_ETF_CONFIG.createParser(message.toBytes()).nextMap().toString());
+			
+			printToUnsigned(message.toBytes());
+			getSession().getRemote().sendBytesByFuture(message.toBuffer());
 		} else {
-			Discord4J.LOGGER.warn(LogMarkers.WEBSOCKET, "Attempt to send message on closed session: {}", filteredMessage);
+			Discord4J.LOGGER.warn(LogMarkers.WEBSOCKET, "Attempt to send message on closed session: {}", message.toString());
 		}
 	}
 

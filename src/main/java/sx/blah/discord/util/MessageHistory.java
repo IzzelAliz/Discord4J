@@ -91,6 +91,19 @@ public class MessageHistory extends AbstractList<IMessage> implements List<IMess
 				.findFirst()
 				.orElse(null);
 	}
+	
+	/**
+	 * This gets a message by its id.
+	 *
+	 * @param id The id.
+	 * @return The message if found, else null.
+	 */
+	public IMessage get(long id) {
+		return Arrays.stream(backing)
+				.filter(msg -> msg.getLongID() == id)
+				.findFirst()
+				.orElse(null);
+	}
 
 	/**
 	 * This checks if this has a message with the specified id stored.
@@ -101,6 +114,18 @@ public class MessageHistory extends AbstractList<IMessage> implements List<IMess
 	public boolean contains(String id) {
 		return Arrays.stream(backing)
 				.filter(msg -> msg.getID().equals(id))
+				.count() > 0;
+	}
+	
+	/**
+	 * This checks if this has a message with the specified id stored.
+	 *
+	 * @param id The id to look for.
+	 * @return True if the specified id is stored, false otherwise.
+	 */
+	public boolean contains(long id) {
+		return Arrays.stream(backing)
+				.filter(msg -> msg.getLongID() == id)
 				.count() > 0;
 	}
 
@@ -196,6 +221,27 @@ public class MessageHistory extends AbstractList<IMessage> implements List<IMess
 		if (message == null)
 			return null;
 
+		message.delete();
+		return message;
+	}
+	
+	/**
+	 * This deletes the message with the specified id This does NOT remove the deleted message from thi MessageHistory
+	 * instance.
+	 *
+	 * @param id The id of the message to delete.
+	 * @return The message deleted or null if the message couldn't be found.
+	 *
+	 * @throws DiscordException
+	 * @throws RateLimitException
+	 * @throws MissingPermissionsException
+	 */
+	public IMessage delete(long id) throws DiscordException, RateLimitException, MissingPermissionsException {
+		IMessage message = get(id);
+		
+		if (message == null)
+			return null;
+		
 		message.delete();
 		return message;
 	}

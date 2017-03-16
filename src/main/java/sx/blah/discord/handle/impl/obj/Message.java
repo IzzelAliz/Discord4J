@@ -33,7 +33,7 @@ public class Message implements IMessage {
 	/**
 	 * The ID of the message. Used for message updating.
 	 */
-	protected final String id;
+	protected final long id;
 
 	/**
 	 * The actual message (what you see
@@ -64,12 +64,12 @@ public class Message implements IMessage {
 	/**
 	 * The list of users mentioned by this message.
 	 */
-	protected volatile List<String> mentions;
+	protected volatile List<Long> mentions;
 
 	/**
 	 * The list of roles mentioned by this message.
 	 */
-	protected volatile List<String> roleMentions;
+	protected volatile List<Long> roleMentions;
 
 	/**
 	 * The attachments, if any, on the message.
@@ -125,7 +125,7 @@ public class Message implements IMessage {
 	/**
 	 * The ID of the webhook that sent this message
 	 */
-	protected final String webhookID;
+	protected final Long webhookID;
 
 	/**
 	 * The pattern for matching channel mentions.
@@ -137,10 +137,10 @@ public class Message implements IMessage {
 	 */
 	private volatile boolean deleted = false;
 
-	public Message(IDiscordClient client, String id, String content, IUser user, IChannel channel,
+	public Message(IDiscordClient client, long id, String content, IUser user, IChannel channel,
 				   LocalDateTime timestamp, LocalDateTime editedTimestamp, boolean mentionsEveryone,
-				   List<String> mentions, List<String> roleMentions, List<Attachment> attachments,
-				   boolean pinned, List<Embed> embedded, List<IReaction> reactions, String webhookID) {
+				   List<Long> mentions, List<Long> roleMentions, List<Attachment> attachments,
+				   boolean pinned, List<Embed> embedded, List<IReaction> reactions, long webhookID) {
 		this.client = client;
 		this.id = id;
 		setContent(content);
@@ -187,7 +187,7 @@ public class Message implements IMessage {
 	 * @param mentions     The new user mentions.
 	 * @param roleMentions The new role mentions.
 	 */
-	public void setMentions(List<String> mentions, List<String> roleMentions) {
+	public void setMentions(List<Long> mentions, List<Long> roleMentions) {
 		this.mentions = mentions;
 		this.roleMentions = roleMentions;
 	}
@@ -238,12 +238,12 @@ public class Message implements IMessage {
 	public IUser getAuthor() {
 		return author;
 	}
-
+	
 	@Override
-	public String getID() {
+	public long getLongID() {
 		return id;
 	}
-
+	
 	/**
 	 * Sets the CACHED version of the message timestamp.
 	 *
@@ -320,28 +320,10 @@ public class Message implements IMessage {
 		}
 
 		((DiscordClientImpl) client).REQUESTS.PATCH.makeRequest(
-				DiscordEndpoints.CHANNELS + channel.getID() + "/messages/" + id,
+				DiscordEndpoints.CHANNELS + channel.getStringID() + "/messages/" + getStringID(),
 				new MessageRequest(content, embed, false));
 
 		return this;
-	}
-
-	/**
-	 * Gets the raw list of mentioned user ids.
-	 *
-	 * @return Mentioned user list.
-	 */
-	public List<String> getRawMentions() {
-		return mentions;
-	}
-
-	/**
-	 * Gets the raw list of mentioned role ids.
-	 *
-	 * @return Mentioned role list.
-	 */
-	public List<String> getRawRoleMentions() {
-		return roleMentions;
 	}
 
 	@Override
@@ -373,7 +355,7 @@ public class Message implements IMessage {
 			DiscordUtils.checkPermissions(client, getChannel(), EnumSet.of(Permissions.MANAGE_MESSAGES));
 		}
 
-		((DiscordClientImpl) client).REQUESTS.DELETE.makeRequest(DiscordEndpoints.CHANNELS + channel.getID() + "/messages/" + id);
+		((DiscordClientImpl) client).REQUESTS.DELETE.makeRequest(DiscordEndpoints.CHANNELS + channel.getStringID() + "/messages/" + getStringID());
 	}
 
 	@Override
@@ -469,7 +451,7 @@ public class Message implements IMessage {
 		DiscordUtils.checkPermissions(this.getClient().getOurUser(), this.getChannel(), EnumSet.of(Permissions.MANAGE_MESSAGES));
 
 		((DiscordClientImpl) client).REQUESTS.DELETE.makeRequest(
-				String.format(DiscordEndpoints.REACTIONS, this.getChannel().getID(), this.getID()));
+				String.format(DiscordEndpoints.REACTIONS, this.getChannel().getStringID(), this.getStringID()));
 	}
 
 	@Override
@@ -500,7 +482,7 @@ public class Message implements IMessage {
 
 		try {
 			((DiscordClientImpl) client).REQUESTS.PUT.makeRequest(
-					String.format(DiscordEndpoints.REACTIONS_USER, getChannel().getID(), getID(),
+					String.format(DiscordEndpoints.REACTIONS_USER, getChannel().getStringID(), getStringID(),
 							URLEncoder.encode(emoji, "UTF-8").replace("+", "%20").replace("%3A", ":"), "@me"));
 		} catch (UnsupportedEncodingException e) {
 			Discord4J.LOGGER.error(LogMarkers.HANDLE, "Discord4J Internal Exception", e);
@@ -524,11 +506,11 @@ public class Message implements IMessage {
 
 		try {
 			((DiscordClientImpl) client).REQUESTS.DELETE.makeRequest(
-					String.format(DiscordEndpoints.REACTIONS_USER, message.getChannel().getID(), message.getID(),
+					String.format(DiscordEndpoints.REACTIONS_USER, message.getChannel().getStringID(), message.getStringID(),
 							reaction.isCustomEmoji()
-									? (reaction.getCustomEmoji().getName() + ":" + reaction.getCustomEmoji().getID())
+									? (reaction.getCustomEmoji().getName() + ":" + reaction.getCustomEmoji().getStringID())
 									: URLEncoder.encode(reaction.toString(), "UTF-8").replace("+", "%20"),
-							user.equals(client.getOurUser()) ? "@me" : user.getID()));
+							user.equals(client.getOurUser()) ? "@me" : user.getStringID()));
 		} catch (UnsupportedEncodingException e) {
 			Discord4J.LOGGER.error(LogMarkers.HANDLE, "Discord4J Internal Exception", e);
 		}
@@ -541,6 +523,11 @@ public class Message implements IMessage {
 
 	@Override
 	public String getWebhookID(){
+		return Long.toUnsignedString(webhookID);
+	}
+	
+	@Override
+	public Long getWebhookLongID(){
 		return webhookID;
 	}
 

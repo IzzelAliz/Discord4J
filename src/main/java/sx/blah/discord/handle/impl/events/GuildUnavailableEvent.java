@@ -14,7 +14,7 @@ public class GuildUnavailableEvent extends sx.blah.discord.handle.impl.events.gu
 		super(guild);
 	}
 	
-	public GuildUnavailableEvent(String id) {
+	public GuildUnavailableEvent(long id) {
 		super(id);
 	}
 }

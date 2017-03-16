@@ -177,15 +177,22 @@ public interface IDiscordClient {
 	default void checkLoggedIn(String action) throws DiscordException {
 		if (!isLoggedIn()) throw new DiscordException("Attempt to " + action + " before client has logged in!");
 	}
-
-
+	
 	/**
 	 * Gets the {@link User} this bot is representing.
 	 *
 	 * @return The user object.
 	 */
 	IUser getOurUser();
-
+	
+	/**
+	 * Gets a guild by its unique id.
+	 *
+	 * @param guildID The id of the desired guild.
+	 * @return The {@link IGuild} object with the provided id.
+	 */
+	IGuild getGuildByID(long guildID);
+	
 	/**
 	 * Gets a set of all channels visible to the bot user.
 	 *
@@ -205,10 +212,18 @@ public interface IDiscordClient {
 	 * Gets a channel by its unique id.
 	 *
 	 * @param channelID The id of the desired channel.
-	 * @return The {@link Channel} object with the provided id.
+	 * @return The {@link IChannel} object with the provided id.
 	 */
 	IChannel getChannelByID(String channelID);
-
+	
+	/**
+	 * Gets a channel by its unique id.
+	 *
+	 * @param channelID The id of the desired channel.
+	 * @return The {@link IChannel} object with the provided id.
+	 */
+	IChannel getChannelByID(long channelID);
+	
 	/**
 	 * Gets a set of all voice channels visible to the bot user.
 	 *
@@ -223,6 +238,14 @@ public interface IDiscordClient {
 	 * @return The voice channel (or null if not found).
 	 */
 	IVoiceChannel getVoiceChannelByID(String id);
+	
+	/**
+	 * Gets a voice channel from a given id.
+	 *
+	 * @param id The voice channel id.
+	 * @return The voice channel (or null if not found).
+	 */
+	IVoiceChannel getVoiceChannelByID(long id);
 
 	/**
 	 * Gets all the guilds the user the api represents is connected to.
@@ -236,7 +259,9 @@ public interface IDiscordClient {
 	 *
 	 * @param guildID The id of the desired guild.
 	 * @return The {@link Guild} object with the provided id.
+	 * @deprecated Use {@link #getGuildByID(long)} instead.
 	 */
+	@Deprecated
 	IGuild getGuildByID(String guildID);
 
 	/**
@@ -250,10 +275,20 @@ public interface IDiscordClient {
 	 * Gets a user by its unique id.
 	 *
 	 * @param userID The id of the desired user.
-	 * @return The {@link User} object with the provided id.
+	 * @return The {@link IUser} object with the provided id.
+	 * @deprecated Use {@link #getUserByID(long)}
 	 */
+	@Deprecated
 	IUser getUserByID(String userID);
-
+	
+	/**
+	 * Gets a user by its unique id.
+	 *
+	 * @param userID The id of the desired user.
+	 * @return The {@link IUser} object with the provided id.
+	 */
+	IUser getUserByID(long userID);
+	
 	/**
 	 * Gets a set of all roles visible to the bot user.
 	 *
@@ -265,10 +300,20 @@ public interface IDiscordClient {
 	 * Gets a role by its unique id.
 	 *
 	 * @param roleID The id of the desired role.
-	 * @return The {@link Role} object
+	 * @return The {@link IRole} object
+	 * @deprecated Use {@link #getRegionByID(String)} instead.
 	 */
+	@Deprecated
 	IRole getRoleByID(String roleID);
-
+	
+	/**
+	 * Gets a role by its unique id.
+	 *
+	 * @param roleID The id of the desired role.
+	 * @return The {@link IRole} object
+	 */
+	IRole getRoleByID(long roleID);
+	
 	/**
 	 * This gets all messages stored internally by the bot.
 	 *
@@ -289,9 +334,19 @@ public interface IDiscordClient {
 	 *
 	 * @param messageID The message id of the message to find.
 	 * @return The message or null if not found.
+	 * @deprecated Use {@link #getMessageByID(long)} instead.
 	 */
+	@Deprecated
 	IMessage getMessageByID(String messageID);
-
+	
+	/**
+	 * This attempts to search all guilds/private channels for a message.
+	 *
+	 * @param messageID The message id of the message to find.
+	 * @return The message or null if not found.
+	 */
+	IMessage getMessageByID(long messageID);
+	
 	/**
 	 * Gets a {@link IPrivateChannel} for the provided recipient.
 	 *
@@ -360,9 +415,20 @@ public interface IDiscordClient {
 	 * @return The application's client id.
 	 *
 	 * @throws DiscordException
+	 * @deprecated Use {@link #getApplicationClientLongID()} instead.
 	 */
+	@Deprecated
 	String getApplicationClientID() throws DiscordException;
-
+	
+	/**
+	 * Gets the bot's application's client id.
+	 *
+	 * @return The application's client id.
+	 *
+	 * @throws DiscordException
+	 */
+	long getApplicationClientLongID() throws DiscordException;
+	
 	/**
 	 * Gets the bot's application's name.
 	 *

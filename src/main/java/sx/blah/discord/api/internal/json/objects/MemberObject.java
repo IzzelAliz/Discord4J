@@ -1,5 +1,11 @@
 package sx.blah.discord.api.internal.json.objects;
 
+import com.austinv11.etf.util.GetterMethod;
+import com.austinv11.etf.util.SetterMethod;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import sx.blah.discord.util.ID;
+
 /**
  * Represents a json member object.
  */
@@ -15,7 +21,7 @@ public class MemberObject {
 	/**
 	 * The roles of the member.
 	 */
-	public String[] roles;
+	private ID[] roles;
 	/**
 	 * When the member joined the guild.
 	 */
@@ -31,8 +37,28 @@ public class MemberObject {
 
 	public MemberObject() {}
 
-	public MemberObject(UserObject user, String[] roles) {
+	public MemberObject(UserObject user, long[] roles) {
 		this.user = user;
-		this.roles = roles;
+		this.roles = ID.of(roles);
+	}
+	
+	@JsonGetter("roles")
+	public String[] getStringRoles() {
+		return ID.toStrings(roles);
+	}
+	
+	@JsonSetter("roles")
+	public void setStringRoles(String[] ids) {
+		this.roles = ID.of(ids);
+	}
+	
+	@GetterMethod("roles")
+	public long[] getLongRoles() {
+		return ID.toLongs(roles);
+	}
+	
+	@SetterMethod("roles")
+	public void setLongRoles(long[] ids) {
+		this.roles = ID.of(ids);
 	}
 }

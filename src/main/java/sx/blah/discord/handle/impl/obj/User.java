@@ -26,15 +26,15 @@ public class User implements IUser {
 	/**
 	 * User ID.
 	 */
-	protected final String id;
+	protected final long id;
 	/**
 	 * The roles the user is a part of. (Key = guild id).
 	 */
-	protected final Map<String, List<IRole>> roles;
+	protected final Map<Long, List<IRole>> roles;
 	/**
 	 * The nicknames this user has. (Key = guild id).
 	 */
-	protected final Map<String, String> nicks;
+	protected final Map<Long, String> nicks;
 	/**
 	 * The voice channels this user is in.
 	 */
@@ -89,26 +89,26 @@ public class User implements IUser {
 	 */
 	private volatile boolean isDeafLocally;
 
-	public User(IShard shard, String name, String id, String discriminator, String avatar, IPresence presence, boolean isBot) {
+	public User(IShard shard, String name, long id, String discriminator, String avatar, IPresence presence, boolean isBot) {
 		this.shard = shard;
 		this.client = shard.getClient();
 		this.id = id;
 		this.name = name;
 		this.discriminator = discriminator;
 		this.avatar = avatar;
-		this.avatarURL = String.format(DiscordEndpoints.AVATARS, this.id, this.avatar,
+		this.avatarURL = String.format(DiscordEndpoints.AVATARS, getStringID(), this.avatar,
 				(this.avatar != null && this.avatar.startsWith("a_")) ? "gif" : "webp");
 		this.presence = presence;
 		this.roles = new ConcurrentHashMap<>();
 		this.nicks = new ConcurrentHashMap<>();
 		this.isBot = isBot;
 	}
-
+	
 	@Override
-	public String getID() {
+	public long getLongID() {
 		return id;
 	}
-
+	
 	@Override
 	public String getName() {
 		return name;
@@ -141,7 +141,7 @@ public class User implements IUser {
 	 */
 	public void setAvatar(String avatar) {
 		this.avatar = avatar;
-		this.avatarURL = String.format(DiscordEndpoints.AVATARS, this.id, this.avatar,
+		this.avatarURL = String.format(DiscordEndpoints.AVATARS, this.getStringID(), this.avatar,
 				(this.avatar != null && this.avatar.startsWith("a_")) ? "gif" : "webp");
 	}
 
@@ -210,7 +210,7 @@ public class User implements IUser {
 
 	@Override
 	public Optional<String> getNicknameForGuild(IGuild guild) {
-		return Optional.ofNullable(nicks.containsKey(guild.getID()) ? nicks.get(guild.getID()) : null);
+		return Optional.ofNullable(nicks.containsKey(guild.getLongID()) ? nicks.get(guild.getLongID()) : null);
 	}
 
 	/**
@@ -219,7 +219,7 @@ public class User implements IUser {
 	 * @param guildID The guild the nickname is for.
 	 * @param nick    The nickname, or null to remove it.
 	 */
-	public void addNick(String guildID, String nick) {
+	public void addNick(long guildID, String nick) {
 		if (nick == null) {
 			if (nicks.containsKey(guildID))
 				nicks.remove(guildID);
@@ -234,7 +234,7 @@ public class User implements IUser {
 	 * @param guildID The guild the role is for.
 	 * @param role    The role.
 	 */
-	public void addRole(String guildID, IRole role) {
+	public void addRole(long guildID, IRole role) {
 		if (!roles.containsKey(guildID)) {
 			roles.put(guildID, new ArrayList<>());
 		}
@@ -287,8 +287,8 @@ public class User implements IUser {
 		}
 
 		((DiscordClientImpl) client).REQUESTS.PATCH.makeRequest(
-				DiscordEndpoints.GUILDS + newChannel.getGuild().getID() + "/members/" + id,
-				new MemberEditRequest(newChannel.getID()));
+				DiscordEndpoints.GUILDS + newChannel.getGuild().getStringID() + "/members/" + getStringID(),
+				new MemberEditRequest(newChannel.getStringID()));
 	}
 
 	@Override
@@ -390,12 +390,12 @@ public class User implements IUser {
 	@Override
 	public void addRole(IRole role) throws DiscordException, RateLimitException, MissingPermissionsException {
 		DiscordUtils.checkPermissions(client, role.getGuild(), Collections.singletonList(role), EnumSet.of(Permissions.MANAGE_ROLES));
-		((DiscordClientImpl) client).REQUESTS.PUT.makeRequest(DiscordEndpoints.GUILDS+role.getGuild().getID()+"/members/"+id+"/roles/"+role.getID());
+		((DiscordClientImpl) client).REQUESTS.PUT.makeRequest(DiscordEndpoints.GUILDS+role.getGuild().getStringID()+"/members/"+getStringID()+"/roles/"+role.getStringID());
 	}
 
 	@Override
 	public void removeRole(IRole role) throws DiscordException, RateLimitException, MissingPermissionsException {
 		DiscordUtils.checkPermissions(client, role.getGuild(), Collections.singletonList(role), EnumSet.of(Permissions.MANAGE_ROLES));
-		((DiscordClientImpl) client).REQUESTS.DELETE.makeRequest(DiscordEndpoints.GUILDS+role.getGuild().getID()+"/members/"+id+"/roles/"+role.getID());
+		((DiscordClientImpl) client).REQUESTS.DELETE.makeRequest(DiscordEndpoints.GUILDS+role.getGuild().getStringID()+"/members/"+getStringID()+"/roles/"+role.getStringID());
 	}
 }

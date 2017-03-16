@@ -43,6 +43,17 @@ public class BotInviteBuilder {
 		this.clientIDOverride = id;
 		return this;
 	}
+	
+	/**
+	 * This replaces the client id provided by your {@link IDiscordClient} instance.
+	 *
+	 * @param id The client id to override with.
+	 * @return The builder instance.
+	 */
+	public BotInviteBuilder withClientID(long id) {
+		this.clientIDOverride = Long.toUnsignedString(id);
+		return this;
+	}
 
 	/**
 	 * This makes the invite link request specific permissions for the bot when it joins.
@@ -67,7 +78,7 @@ public class BotInviteBuilder {
 			url += "&permissions="+Permissions.generatePermissionsNumber(permissions);
 
 		if (guild != null)
-			url += "&guild_id="+guild.getID();
+			url += "&guild_id="+guild.getStringID();
 
 		try {
 			return String.format(url, clientIDOverride == null ? client.getApplicationClientID() : clientIDOverride);

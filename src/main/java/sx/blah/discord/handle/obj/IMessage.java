@@ -273,7 +273,14 @@ public interface IMessage extends IDiscordObject<IMessage> {
 	 * @throws DiscordException
 	 */
 	void removeReaction(IReaction reaction) throws DiscordException, RateLimitException, MissingPermissionsException;
-
+	
+	/**
+	 * Gets the ID of the webhook that sent this message. May be null.
+	 *
+	 * @return The webhook ID.
+	 */
+	Long getWebhookLongID();
+	
 	/**
 	 * This creates a new {@link MessageTokenizer} instance with this message instance.
 	 *
@@ -292,7 +299,9 @@ public interface IMessage extends IDiscordObject<IMessage> {
 	 * Gets the ID of the webhook that sent this message. May be null.
 	 *
 	 * @return The webhook ID.
+	 * @deprecated Use {@link #getWebhookLongID()}
 	 */
+	@Deprecated
 	String getWebhookID();
 
 	/**
@@ -313,14 +322,14 @@ public interface IMessage extends IDiscordObject<IMessage> {
 		/**
 		 * The attachment id.
 		 */
-		protected final String id;
+		protected final long id;
 
 		/**
 		 * The download link for the attachment.
 		 */
 		protected final String url;
 
-		public Attachment(String filename, int filesize, String id, String url) {
+		public Attachment(String filename, int filesize, long id, String url) {
 			this.filename = filename;
 			this.filesize = filesize;
 			this.id = id;
@@ -349,8 +358,19 @@ public interface IMessage extends IDiscordObject<IMessage> {
 		 * Gets the id of the attachment.
 		 *
 		 * @return The attachment id.
+		 * @deprecated Use {@link #getLongID()}
 		 */
+		@Deprecated
 		public String getId() {
+			return Long.toUnsignedString(id);
+		}
+		
+		/**
+		 * Gets the id of the attachment.
+		 *
+		 * @return The attachment id.
+		 */
+		public long getLongID() {
 			return id;
 		}
 

@@ -23,8 +23,24 @@ public interface IShard {
 	/**
 	 * Gets the sharding information for this shard. Index 0 is the current shard number and index 1 is the total number of shards.
 	 * @return The sharding information.
+	 * @deprecated See {@link #getShardNumber()} and {@link #getTotalShardCount()}.
 	 */
+	@Deprecated
 	int[] getInfo();
+	
+	/**
+	 * Gets the shard number of this shard.
+	 *
+	 * @return The shard number.
+	 */
+	int getShardNumber();
+	
+	/**
+	 * Gets the total number of shards being used.
+	 *
+	 * @return The total number of shards.
+	 */
+	int getTotalShardCount();
 
 	/**
 	 * Connects this shard to the Discord gateway.
@@ -177,14 +193,24 @@ public interface IShard {
 	 * Gets a channel by its unique id.
 	 *
 	 * @param channelID The id of the desired channel.
-	 * @return The {@link Channel} object with the provided id.
+	 * @return The {@link IChannel} object with the provided id.
+	 * @deprecated Use {@link #getChannelByID(long)}
 	 */
+	@Deprecated
 	IChannel getChannelByID(String channelID);
-
+	
+	/**
+	 * Gets a channel by its unique id.
+	 *
+	 * @param id The id of the desired channel.
+	 * @return The {@link IChannel} object with the provided id.
+	 */
+	IChannel getChannelByID(long id);
+	
 	/**
 	 * Gets a set of all voice channels visible to this shard.
 	 *
-	 * @return A {@link Collection} of all {@link VoiceChannel} objects.
+	 * @return A {@link Collection} of all {@link IVoiceChannel} objects.
 	 */
 	List<IVoiceChannel> getVoiceChannels();
 
@@ -200,8 +226,18 @@ public interface IShard {
 	 *
 	 * @param id The voice channel id.
 	 * @return The voice channel (or null if not found).
+	 * @deprecated Use {@link #getVoiceChannelByID(long)}
 	 */
+	@Deprecated
 	IVoiceChannel getVoiceChannelByID(String id);
+	
+	/**
+	 * Gets a voice channel from a given id.
+	 *
+	 * @param id The voice channel id.
+	 * @return The voice channel (or null if not found).
+	 */
+	IVoiceChannel getVoiceChannelByID(long id);
 
 	/**
 	 * Gets a set of all guilds visible to this shard.
@@ -215,8 +251,18 @@ public interface IShard {
 	 *
 	 * @param guildID The id of the desired guild.
 	 * @return The {@link Guild} object with the provided id.
+	 * @deprecated Use {@link #getGuildByID(long)}
 	 */
+	@Deprecated
 	IGuild getGuildByID(String guildID);
+	
+	/**
+	 * Gets a guild by its unique id.
+	 *
+	 * @param guildID The id of the desired guild.
+	 * @return The {@link Guild} object with the provided id.
+	 */
+	IGuild getGuildByID(long guildID);
 
 	/**
 	 * Gets a set of all users visible to this shard.
@@ -230,8 +276,18 @@ public interface IShard {
 	 *
 	 * @param userID The id of the desired user.
 	 * @return The {@link User} object with the provided id.
+	 * @deprecated Use {@link #getUserByID(long)}
 	 */
+	@Deprecated
 	IUser getUserByID(String userID);
+	
+	/**
+	 * Gets a user by its unique id.
+	 *
+	 * @param userID The id of the desired user.
+	 * @return The {@link User} object with the provided id.
+	 */
+	IUser getUserByID(long userID);
 
 	/**
 	 * Gets a set of all roles visible to this shard.
@@ -245,8 +301,18 @@ public interface IShard {
 	 *
 	 * @param roleID The id of the desired role.
 	 * @return The {@link Role} object
+	 * @deprecated Use {@link #getRoleByID(long)}
 	 */
+	@Deprecated
 	IRole getRoleByID(String roleID);
+	
+	/**
+	 * Gets a role by its unique id.
+	 *
+	 * @param roleID The id of the desired role.
+	 * @return The {@link Role} object
+	 */
+	IRole getRoleByID(long roleID);
 
 	/**
 	 * This gets all messages stored in this shard's cache.
@@ -268,8 +334,18 @@ public interface IShard {
 	 *
 	 * @param messageID The message id of the message to find.
 	 * @return The message or null if not found.
+	 * @deprecated Use {@link #getMessageByID(long)}
 	 */
+	@Deprecated
 	IMessage getMessageByID(String messageID);
+	
+	/**
+	 * This attempts to search all guilds/private channels visible to this shard for a message.
+	 *
+	 * @param messageID The message id of the message to find.
+	 * @return The message or null if not found.
+	 */
+	IMessage getMessageByID(long messageID);
 
 	/**
 	 * Gets a {@link IPrivateChannel} for the provided recipient.

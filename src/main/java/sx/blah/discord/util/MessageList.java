@@ -178,7 +178,7 @@ public class MessageList extends AbstractList<IMessage> implements List<IMessage
 
 		MessageObject[] messages = new MessageObject[0];
 		try {
-			messages = DiscordUtils.MAPPER.readValue(client.REQUESTS.GET.makeRequest(DiscordEndpoints.CHANNELS+channel.getID()+"/messages"+queryParams), MessageObject[].class);
+			messages = DiscordUtils.MAPPER.readValue(client.REQUESTS.GET.makeRequest(DiscordEndpoints.CHANNELS+channel.getStringID()+"/messages"+queryParams), MessageObject[].class);
 		} catch (IOException e) {
 			throw new DiscordException("JSON Parsing exception!", e);
 		}
@@ -238,13 +238,23 @@ public class MessageList extends AbstractList<IMessage> implements List<IMessage
 	}
 
 	/**
-	 * This checks if a message with the provided id is cached my this list.
+	 * This checks if a message with the provided id is cached by this list.
 	 *
 	 * @param id The id.
 	 * @return True if found, false if otherwise.
 	 */
 	public boolean contains(String id) {
 		return messageCache.stream().filter(it -> it.getID().equals(id)).findFirst().isPresent();
+	}
+	
+	/**
+	 * This checks if a message with the provided id is cached by this list.
+	 *
+	 * @param id The id.
+	 * @return True if found, false if otherwise.
+	 */
+	public boolean contains(long id) {
+		return messageCache.stream().filter(it -> it.getLongID() == id).findFirst().isPresent();
 	}
 
 	/**
@@ -352,7 +362,7 @@ public class MessageList extends AbstractList<IMessage> implements List<IMessage
 		if (message == null && hasPermissions() && client.isReady())
 			try {
 				return DiscordUtils.getMessageFromJSON((Channel) channel, client.REQUESTS.GET.makeRequest(
-						DiscordEndpoints.CHANNELS + channel.getID() + "/messages/" + id,
+						DiscordEndpoints.CHANNELS + channel.getStringID() + "/messages/" + id,
 						MessageObject.class));
 			} catch (Exception ignored) {}
 
@@ -588,7 +598,7 @@ public class MessageList extends AbstractList<IMessage> implements List<IMessage
 			throw new DiscordException(String.format("%d messages cannot be bulk deleted! They are more than 2 weeks old.", invalidCount));
 
 		client.REQUESTS.POST.makeRequest(
-				DiscordEndpoints.CHANNELS + channel.getID() + "/messages/bulk-delete",
+				DiscordEndpoints.CHANNELS + channel.getStringID() + "/messages/bulk-delete",
 				new BulkDeleteRequest(messages));
 	}
 

@@ -11,7 +11,7 @@ public class PrivateChannelCreateRequest {
 	 */
 	public String recipient_id;
 
-	public PrivateChannelCreateRequest(String recipient_id) {
-		this.recipient_id = recipient_id;
+	public PrivateChannelCreateRequest(long recipient_id) {
+		this.recipient_id = Long.toUnsignedString(recipient_id);
 	}
 }

@@ -9,14 +9,14 @@ import org.eclipse.jetty.websocket.api.WebSocketAdapter;
 import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
 import sx.blah.discord.Discord4J;
-import sx.blah.discord.api.internal.json.GatewayPayload;
-import sx.blah.discord.api.internal.json.requests.voice.SelectProtocolRequest;
-import sx.blah.discord.api.internal.json.requests.voice.VoiceIdentifyRequest;
-import sx.blah.discord.api.internal.json.requests.voice.VoiceSpeakingRequest;
-import sx.blah.discord.api.internal.json.responses.voice.VoiceDescriptionResponse;
-import sx.blah.discord.api.internal.json.responses.voice.VoiceReadyResponse;
-import sx.blah.discord.api.internal.json.responses.voice.VoiceSpeakingResponse;
-import sx.blah.discord.api.internal.json.responses.voice.VoiceUpdateResponse;
+import sx.blah.discord.api.internal.etf.GatewayPayload;
+import sx.blah.discord.api.internal.etf.voice.SelectProtocolRequest;
+import sx.blah.discord.api.internal.etf.voice.VoiceIdentifyRequest;
+import sx.blah.discord.api.internal.etf.voice.VoiceSpeakingRequest;
+import sx.blah.discord.api.internal.etf.voice.VoiceDescriptionResponse;
+import sx.blah.discord.api.internal.etf.voice.VoiceReadyResponse;
+import sx.blah.discord.api.internal.etf.voice.VoiceSpeakingResponse;
+import sx.blah.discord.api.internal.etf.voice.VoiceUpdateResponse;
 import sx.blah.discord.handle.audio.impl.AudioManager;
 import sx.blah.discord.handle.impl.events.VoiceDisconnectedEvent;
 import sx.blah.discord.handle.impl.events.VoiceUserSpeakingEvent;
@@ -75,7 +75,7 @@ public class DiscordVoiceWS extends WebSocketAdapter {
 		super.onWebSocketConnect(sess);
 		Discord4J.LOGGER.info(LogMarkers.VOICE_WEBSOCKET, "Voice websocket connected.");
 
-		VoiceIdentifyRequest request = new VoiceIdentifyRequest(guild.getID(), client.getOurUser().getID(), shard.ws.sessionId, token);
+		VoiceIdentifyRequest request = new VoiceIdentifyRequest(guild.getLongID(), client.getOurUser().getLongID(), shard.ws.sessionId, token);
 		send(VoiceOps.IDENTIFY, request);
 	}
 

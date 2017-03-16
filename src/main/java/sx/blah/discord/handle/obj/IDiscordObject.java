@@ -15,8 +15,29 @@ public interface IDiscordObject<SELF extends IDiscordObject> { //The SELF thing 
 	 * Gets the snowflake unique id for this object.
 	 *
 	 * @return The id.
+	 * @deprecated In a future release this will return long (equivalent of {@link #getLongID()}),
+	 * {@link #getStringID()} is the safe replacement.
 	 */
-	String getID();
+	@Deprecated
+	default String getID() {
+		return getStringID();
+	}
+	
+	/**
+	 * Gets the snowflake unique id for this object.
+	 *
+	 * @return The id.
+	 */
+	long getLongID();
+	
+	/**
+	 * Gets the snowflake unique id for this object.
+	 *
+	 * @return The id.
+	 */
+	default String getStringID() {
+		return Long.toUnsignedString(getLongID());
+	}
 
 	/**
 	 * Gets the {@link IDiscordClient} instance this object belongs to.
@@ -37,7 +58,7 @@ public interface IDiscordObject<SELF extends IDiscordObject> { //The SELF thing 
 	 * @return The creation date of this object.
 	 */
 	default LocalDateTime getCreationDate() {
-		return DiscordUtils.getSnowflakeTimeFromID(getID());
+		return DiscordUtils.getSnowflakeTimeFromID(getLongID());
 	}
 
 	/**

@@ -137,6 +137,12 @@
 			<version>3.2.0</version>
 		</dependency>
 
+		<dependency>
+			<groupId>com.github.austinv11</groupId>
+			<artifactId>etf-java</artifactId>
+			<version>b3fa64c</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>
@@ -266,6 +272,10 @@
 		<repository>
 			<id>jcenter</id>
 			<url>http://jcenter.bintray.com/</url>
+		</repository>
+		<repository>
+			<id>jitpack.io</id>
+			<url>https://jitpack.io</url>
 		</repository>
 	</repositories>
 </project>

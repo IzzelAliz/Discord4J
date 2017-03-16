@@ -1,6 +1,5 @@
 package sx.blah.discord.api;
 
-import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.internal.DiscordEndpoints;
 import sx.blah.discord.api.internal.DiscordUtils;
 import sx.blah.discord.api.internal.json.responses.metrics.MetricsResponse;
@@ -8,7 +7,6 @@ import sx.blah.discord.api.internal.json.responses.metrics.StatusResponse;
 import sx.blah.discord.util.DiscordException;
 import sx.blah.discord.util.RateLimitException;
 import sx.blah.discord.api.internal.Requests;
-import sx.blah.discord.util.LogMarkers;
 
 import java.time.LocalDateTime;
 

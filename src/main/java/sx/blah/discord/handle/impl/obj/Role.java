@@ -1,7 +1,5 @@
 package sx.blah.discord.handle.impl.obj;
 
-import org.apache.http.entity.StringEntity;
-import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.IShard;
 import sx.blah.discord.api.internal.DiscordClientImpl;
@@ -9,21 +7,17 @@ import sx.blah.discord.api.internal.DiscordEndpoints;
 import sx.blah.discord.api.internal.DiscordUtils;
 import sx.blah.discord.api.internal.json.objects.RoleObject;
 import sx.blah.discord.api.internal.json.requests.RoleEditRequest;
-import sx.blah.discord.handle.impl.events.RoleUpdateEvent;
 import sx.blah.discord.handle.obj.IGuild;
 import sx.blah.discord.handle.obj.IRole;
 import sx.blah.discord.handle.obj.Permissions;
 import sx.blah.discord.util.DiscordException;
-import sx.blah.discord.util.LogMarkers;
 import sx.blah.discord.util.MissingPermissionsException;
 import sx.blah.discord.util.RateLimitException;
 
 import java.awt.*;
-import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Objects;
-import java.util.Optional;
 
 public class Role implements IRole {
 
@@ -50,7 +44,7 @@ public class Role implements IRole {
 	/**
 	 * The role id
 	 */
-	protected volatile String id;
+	protected volatile long id;
 
 	/**
 	 * Whether to display this role separately from others
@@ -72,7 +66,7 @@ public class Role implements IRole {
 	 */
 	protected volatile IGuild guild;
 
-	public Role(int position, int permissions, String name, boolean managed, String id, boolean hoist, int color, boolean mentionable, IGuild guild) {
+	public Role(int position, int permissions, String name, boolean managed, long id, boolean hoist, int color, boolean mentionable, IGuild guild) {
 		this.position = position;
 		this.permissions = Permissions.getAllowedPermissionsForNumber(permissions);
 		this.name = name;
@@ -141,11 +135,6 @@ public class Role implements IRole {
 	}
 
 	@Override
-	public String getID() {
-		return id;
-	}
-
-	@Override
 	public boolean isHoisted() {
 		return hoist;
 	}
@@ -204,7 +193,7 @@ public class Role implements IRole {
 			throw new IllegalArgumentException("Permissions set must not be null.");
 
 		DiscordUtils.getRoleFromJSON(getGuild(), ((DiscordClientImpl) getClient()).REQUESTS.PATCH.makeRequest(
-				DiscordEndpoints.GUILDS + guild.getID() + "/roles/" + id,
+				DiscordEndpoints.GUILDS + guild.getStringID() + "/roles/" + getStringID(),
 				new RoleEditRequest(color, hoist, name, permissions, isMentionable),
 				RoleObject.class));
 	}
@@ -238,7 +227,7 @@ public class Role implements IRole {
 	public void delete() throws DiscordException, RateLimitException, MissingPermissionsException {
 		DiscordUtils.checkPermissions(((Guild) guild).client, guild, Collections.singletonList(this), EnumSet.of(Permissions.MANAGE_ROLES));
 
-		((DiscordClientImpl) getClient()).REQUESTS.DELETE.makeRequest(DiscordEndpoints.GUILDS+guild.getID()+"/roles/"+id);
+		((DiscordClientImpl) getClient()).REQUESTS.DELETE.makeRequest(DiscordEndpoints.GUILDS+guild.getStringID()+"/roles/"+getStringID());
 	}
 
 	@Override
@@ -246,7 +235,12 @@ public class Role implements IRole {
 		return new Role(position, Permissions.generatePermissionsNumber(permissions), name, managed, id, hoist,
 				color.getRGB(), mentionable, guild);
 	}
-
+	
+	@Override
+	public long getLongID() {
+		return id;
+	}
+	
 	@Override
 	public IDiscordClient getClient() {
 		return getGuild().getClient();

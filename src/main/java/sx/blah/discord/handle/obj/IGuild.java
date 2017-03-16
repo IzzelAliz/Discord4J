@@ -19,9 +19,18 @@ public interface IGuild extends IDiscordObject<IGuild> {
 	 * Gets the user id for the owner of this guild.
 	 *
 	 * @return The owner id.
+	 * @deprecated Use {@link #getOwnerLongID()}
 	 */
+	@Deprecated
 	String getOwnerID();
-
+	
+	/**
+	 * Gets the user id for the owner of this guild.
+	 *
+	 * @return The owner id.
+	 */
+	long getOwnerLongID();
+	
 	/**
 	 * Gets the user object for the owner of this guild.
 	 *
@@ -55,8 +64,18 @@ public interface IGuild extends IDiscordObject<IGuild> {
 	 *
 	 * @param id The ID of the channel you want to find.
 	 * @return The channel with given ID.
+	 * @deprecated Use {@link #getChannelByID(long)}
 	 */
+	@Deprecated
 	IChannel getChannelByID(String id);
+	
+	/**
+	 * Gets a channel on the guild by a specific channel id.
+	 *
+	 * @param id The ID of the channel you want to find.
+	 * @return The channel with given ID.
+	 */
+	IChannel getChannelByID(long id);
 
 	/**
 	 * Gets all the users connected to the guild.
@@ -70,8 +89,18 @@ public interface IGuild extends IDiscordObject<IGuild> {
 	 *
 	 * @param id ID of the user you want to find.
 	 * @return The user with given ID.
+	 * @deprecated Use {@link #getUserByID(long)}
 	 */
+	@Deprecated
 	IUser getUserByID(String id);
+	
+	/**
+	 * Gets a user by its id in the guild.
+	 *
+	 * @param id ID of the user you want to find.
+	 * @return The user with given ID.
+	 */
+	IUser getUserByID(long id);
 
 	/**
 	 * Gets all the channels which has a name matching the provided one.
@@ -143,8 +172,18 @@ public interface IGuild extends IDiscordObject<IGuild> {
 	 *
 	 * @param id The role id of the desired role.
 	 * @return The role, or null if not found.
+	 * @deprecated Use {@link #getRoleByID(long)}
 	 */
+	@Deprecated
 	IRole getRoleByID(String id);
+	
+	/**
+	 * Gets a role object for its unique id.
+	 *
+	 * @param id The role id of the desired role.
+	 * @return The role, or null if not found.
+	 */
+	IRole getRoleByID(long id);
 
 	/**
 	 * This finds all the roles which has the same name as the provided one.
@@ -166,8 +205,18 @@ public interface IGuild extends IDiscordObject<IGuild> {
 	 *
 	 * @param id The channel id.
 	 * @return The voice channel (or null if not found).
+	 * @deprecated Use {@link #getVoiceChannelByID(long)}
 	 */
+	@Deprecated
 	IVoiceChannel getVoiceChannelByID(String id);
+	
+	/**
+	 * Gets a voice channel for a give id.
+	 *
+	 * @param id The channel id.
+	 * @return The voice channel (or null if not found).
+	 */
+	IVoiceChannel getVoiceChannelByID(long id);
 
 	/**
 	 * Gets the voice channel that the bot is currently connected to.
@@ -561,8 +610,18 @@ public interface IGuild extends IDiscordObject<IGuild> {
 	 *
 	 * @param id The message id.
 	 * @return The message or null if not found.
+	 * @deprecated Use {@link #getMessageByID(long)}
 	 */
+	@Deprecated
 	IMessage getMessageByID(String id);
+	
+	/**
+	 * This gets a message by its id.
+	 *
+	 * @param id The message id.
+	 * @return The message or null if not found.
+	 */
+	IMessage getMessageByID(long id);
 
 	/**
 	 * This gets all the emojis in the guild.
@@ -576,8 +635,18 @@ public interface IGuild extends IDiscordObject<IGuild> {
 	 *
 	 * @param id The ID.
 	 * @return The emoji.
+	 * @deprecated Use {@link #getEmojiByID(long)}
 	 */
+	@Deprecated
 	IEmoji getEmojiByID(String id);
+	
+	/**
+	 * This gets an emoji by its ID.
+	 *
+	 * @param id The ID.
+	 * @return The emoji.
+	 */
+	IEmoji getEmojiByID(long id);
 
 	/**
 	 * This gets an emoji by its name.
@@ -592,8 +661,18 @@ public interface IGuild extends IDiscordObject<IGuild> {
 	 *
 	 * @param id The webhook id.
 	 * @return The webhook or null if not found.
+	 * @deprecated Use {@link #getWebhookByID(long)}
 	 */
+	@Deprecated
 	IWebhook getWebhookByID(String id);
+	
+	/**
+	 * This gets a webhook by its id.
+	 *
+	 * @param id The webhook id.
+	 * @return The webhook or null if not found.
+	 */
+	IWebhook getWebhookByID(long id);
 
 	/**
 	 * This finds all the webhooks which have the same name as the provided one.

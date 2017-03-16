@@ -1,5 +1,7 @@
 package sx.blah.discord.api.internal;
 
+import com.austinv11.etf.ETFConfig;
+import com.austinv11.etf.util.Mapper;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonParser;
@@ -11,9 +13,9 @@ import org.apache.commons.lang3.tuple.Pair;
 import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.IShard;
-import sx.blah.discord.api.internal.json.event.PresenceUpdateEventResponse;
+import sx.blah.discord.api.internal.etf.event.PresenceUpdateEventResponse;
 import sx.blah.discord.api.internal.json.objects.*;
-import sx.blah.discord.api.internal.json.requests.GuildMembersRequest;
+import sx.blah.discord.api.internal.etf.GuildMembersRequest;
 import sx.blah.discord.handle.audio.impl.AudioManager;
 import sx.blah.discord.handle.impl.obj.*;
 import sx.blah.discord.handle.obj.*;
@@ -25,10 +27,6 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import java.awt.*;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.InputStreamReader;
-import java.math.BigInteger;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -40,8 +38,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.zip.InflaterInputStream;
 
 /**
  * Collection of internal Discord4J utilities.
@@ -80,6 +76,21 @@ public class DiscordUtils {
 			.enable(JsonParser.Feature.ALLOW_MISSING_VALUES)
 			.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.NONE)
 			.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+	public static final ETFConfig PARTIAL_ETF_CONFIG = new ETFConfig()
+			.setBert(false)
+			.setCompression(false)
+			.setIncludeDistributionHeader(false)
+			.setIncludeHeader(false)
+			.setVersion(131)
+			.setLoqui(true);
+	public static final ETFConfig FULL_ETF_CONFIG = new ETFConfig()
+			.setBert(false)
+			.setCompression(false)
+			.setIncludeDistributionHeader(false)
+			.setIncludeHeader(true)
+			.setVersion(131)
+			.setLoqui(true);
+	public static final Mapper ETF_MAPPER = PARTIAL_ETF_CONFIG.createMapper();
 
 	/**
 	 * Used to find urls in order to not escape them
@@ -92,7 +103,7 @@ public class DiscordUtils {
 	/**
 	 * Used to determine age based on discord ids
 	 */
-	public static final BigInteger DISCORD_EPOCH = new BigInteger("1420070400000");
+	public static final long DISCORD_EPOCH = 1420070400000L;
 
 	/**
 	 * Converts a String timestamp into a java object timestamp.
@@ -116,14 +127,14 @@ public class DiscordUtils {
 			return null;
 
 		User user;
-		if ((user = (User) shard.getUserByID(response.id)) != null) {
+		if ((user = (User) shard.getUserByID(response.getLongID())) != null) {
 			user.setAvatar(response.avatar);
 			user.setName(response.username);
 			user.setDiscriminator(response.discriminator);
 			if (response.bot && !user.isBot())
 				user.convertToBot();
 		} else {
-			user = new User(shard, response.username, response.id, response.discriminator, response.avatar,
+			user = new User(shard, response.username, response.getLongID(), response.discriminator, response.avatar,
 					new PresenceImpl(Optional.empty(), Optional.empty(), StatusType.OFFLINE), response.bot);
 		}
 		return user;
@@ -146,11 +157,11 @@ public class DiscordUtils {
 	 * @param json The json response to use.
 	 * @return The list of mentioned users.
 	 */
-	public static List<String> getMentionsFromJSON(MessageObject json) {
-		List<String> mentions = new ArrayList<>();
+	public static List<Long> getMentionsFromJSON(MessageObject json) {
+		List<Long> mentions = new ArrayList<>();
 		if (json.mentions != null)
 			for (UserObject response : json.mentions)
-				mentions.add(response.id);
+				mentions.add(response.getLongID());
 
 		return mentions;
 	}
@@ -161,10 +172,10 @@ public class DiscordUtils {
 	 * @param json The json response to use.
 	 * @return The list of mentioned roles.
 	 */
-	public static List<String> getRoleMentionsFromJSON(MessageObject json) {
-		List<String> mentions = new ArrayList<>();
-		if (json.mention_roles != null)
-			for (String role : json.mention_roles)
+	public static List<Long> getRoleMentionsFromJSON(MessageObject json) {
+		List<Long> mentions = new ArrayList<>();
+		if (json.getLongRoles() != null)
+			for (long role : json.getLongRoles())
 				mentions.add(role);
 
 		return mentions;
@@ -180,7 +191,7 @@ public class DiscordUtils {
 		List<IMessage.Attachment> attachments = new ArrayList<>();
 		if (json.attachments != null)
 			for (MessageObject.AttachmentObject response : json.attachments) {
-				attachments.add(new IMessage.Attachment(response.filename, response.size, response.id, response.url));
+				attachments.add(new IMessage.Attachment(response.filename, response.size, response.getLongID(), response.url));
 			}
 
 		return attachments;
@@ -215,11 +226,11 @@ public class DiscordUtils {
 	public static IGuild getGuildFromJSON(IShard shard, GuildObject json) {
 		Guild guild;
 
-		if ((guild = (Guild) shard.getGuildByID(json.id)) != null) {
+		if ((guild = (Guild) shard.getGuildByID(json.getLongID())) != null) {
 			guild.setIcon(json.icon);
 			guild.setName(json.name);
-			guild.setOwnerID(json.owner_id);
-			guild.setAFKChannel(json.afk_channel_id);
+			guild.setOwnerID(json.getLongOwnerID());
+			guild.setAFKChannel(json.getLongAFKChannelID());
 			guild.setAfkTimeout(json.afk_timeout);
 			guild.setRegion(json.region);
 			guild.setVerificationLevel(json.verification_level);
@@ -240,7 +251,7 @@ public class DiscordUtils {
 				}
 			}
 		} else {
-			guild = new Guild(shard, json.name, json.id, json.icon, json.owner_id, json.afk_channel_id,
+			guild = new Guild(shard, json.name, json.getLongID(), json.icon, json.getLongOwnerID(), json.getLongAFKChannelID(),
 					json.afk_timeout, json.region, json.verification_level);
 
 			if (json.roles != null)
@@ -256,12 +267,12 @@ public class DiscordUtils {
 				}
 
 			if (json.large) { //The guild is large, we have to send a request to get the offline users
-				((ShardImpl) shard).ws.send(GatewayOps.REQUEST_GUILD_MEMBERS, new GuildMembersRequest(json.id));
+				((ShardImpl) shard).ws.send(GatewayOps.REQUEST_GUILD_MEMBERS, new GuildMembersRequest(json.getLongID()));
 			}
 
 			if (json.presences != null)
 				for (PresenceObject presence : json.presences) {
-					User user = (User) guild.getUserByID(presence.user.id);
+					User user = (User) guild.getUserByID(presence.user.getLongID());
 					if (user != null) {
 						user.setPresence(
 								DiscordUtils.getPresenceFromJSON(presence));
@@ -280,7 +291,7 @@ public class DiscordUtils {
 
 			if (json.voice_states != null) {
 				for (VoiceStateObject voiceState : json.voice_states) {
-					guild.getUserByID(voiceState.user_id).getConnectedVoiceChannels().add(guild.getVoiceChannelByID(voiceState.channel_id));
+					guild.getUserByID(voiceState.getLongUserID()).getConnectedVoiceChannels().add(guild.getVoiceChannelByID(voiceState.getLongChannelID()));
 				}
 			}
 		}
@@ -301,16 +312,16 @@ public class DiscordUtils {
 	 * @return The emoji object.
 	 */
 	public static IEmoji getEmojiFromJSON(IGuild guild, EmojiObject json) {
-		EmojiImpl emoji = new EmojiImpl(guild, json.id, json.name, json.require_colons, json.managed, json.roles);
+		EmojiImpl emoji = new EmojiImpl(guild, json.getLongID(), json.name, json.require_colons, json.managed, (IRole[]) Arrays.stream(json.getLongRoles()).mapToObj(guild::getEmojiByID).toArray());
 
 		return emoji;
 	}
 
 	public static IReaction getReactionFromJSON(IShard shard, MessageObject.ReactionObject object) {
 		Reaction reaction = new Reaction(shard, object.count, new CopyOnWriteArrayList<>(),
-				object.emoji.id != null
-						? object.emoji.id
-						: object.emoji.name, object.emoji.id != null);
+				object.emoji.getStringID() != null
+						? object.emoji.getStringID()
+						: object.emoji.name, object.emoji.getStringID() != null);
 
 
 		return reaction;
@@ -339,14 +350,14 @@ public class DiscordUtils {
 	 */
 	public static IUser getUserFromGuildMemberResponse(IGuild guild, MemberObject json) {
 		User user = getUserFromJSON(guild.getShard(), json.user);
-		for (String role : json.roles) {
+		for (long role : json.getLongRoles()) {
 			Role roleObj = (Role) guild.getRoleByID(role);
 			if (roleObj != null && !user.getRolesForGuild(guild).contains(roleObj))
-				user.addRole(guild.getID(), roleObj);
+				user.addRole(guild.getLongID(), roleObj);
 		}
-		user.addRole(guild.getID(), guild.getRoleByID(guild.getID())); //@everyone role
+		user.addRole(guild.getLongID(), guild.getRoleByID(guild.getLongID())); //@everyone role
 
-		user.addNick(guild.getID(), json.nick);
+		user.addNick(guild.getLongID(), json.nick);
 
 		user.setIsDeaf(guild.getID(), json.deaf);
 		user.setIsMute(guild.getID(), json.mute);
@@ -363,7 +374,7 @@ public class DiscordUtils {
 	 * @return The private channel object.
 	 */
 	public static IPrivateChannel getPrivateChannelFromJSON(IShard shard, PrivateChannelObject json) {
-		String id = json.id;
+		long id = json.getLongID();
 		User recipient = (User) shard.getUserByID(id);
 		if (recipient == null)
 			recipient = getUserFromJSON(shard, json.recipient);
@@ -390,8 +401,8 @@ public class DiscordUtils {
 	 * @return The message object.
 	 */
 	public static IMessage getMessageFromJSON(Channel channel, MessageObject json) {
-		if (channel.messages != null && channel.messages.stream().anyMatch(msg -> msg.getID().equals(json.id))) {
-			Message message = (Message) channel.getMessageByID(json.id);
+		if (channel.messages != null && channel.messages.stream().anyMatch(msg -> msg.getLongID() == json.getLongID())) {
+			Message message = (Message) channel.getMessageByID(json.getLongID());
 			message.setAttachments(getAttachmentsFromJSON(json));
 			message.setEmbedded(getEmbedsFromJSON(json));
 			message.setContent(json.content);
@@ -405,12 +416,12 @@ public class DiscordUtils {
 
 			return message;
 		} else {
-			Message message = new Message(channel.getClient(), json.id, json.content,
+			Message message = new Message(channel.getClient(), json.getLongID(), json.content,
 					getUserFromJSON(channel.getShard(), json.author), channel, convertFromTimestamp(json.timestamp),
 					json.edited_timestamp == null ? null : convertFromTimestamp(json.edited_timestamp),
 					json.mention_everyone, getMentionsFromJSON(json), getRoleMentionsFromJSON(json),
 					getAttachmentsFromJSON(json), Boolean.TRUE.equals(json.pinned), getEmbedsFromJSON(json),
-					getReactionsFromJson(channel.getShard(), json.reactions), json.webhook_id);
+					getReactionsFromJson(channel.getShard(), json.reactions), json.getLongWebhookID());
 
 			for (IReaction reaction : message.getReactions()) {
 				((Reaction) reaction).setMessage(message);
@@ -462,14 +473,14 @@ public class DiscordUtils {
 	 * @return The message object.
 	 */
 	public static IWebhook getWebhookFromJSON(IChannel channel, WebhookObject json) {
-		if (channel.getWebhookByID(json.id) != null) {
-			Webhook webhook = (Webhook) channel.getWebhookByID(json.id);
+		if (channel.getWebhookByID(json.getLongID()) != null) {
+			Webhook webhook = (Webhook) channel.getWebhookByID(json.getLongID());
 			webhook.setName(json.name);
 			webhook.setAvatar(json.avatar);
 
 			return webhook;
 		} else {
-			return new Webhook(channel.getClient(), json.name, json.id, channel, getUserFromJSON(channel.getShard(), json.user), json.avatar, json.token);
+			return new Webhook(channel.getClient(), json.name, json.getLongID(), channel, getUserFromJSON(channel.getShard(), json.user), json.avatar, json.token);
 		}
 	}
 
@@ -483,13 +494,13 @@ public class DiscordUtils {
 	public static IChannel getChannelFromJSON(IGuild guild, ChannelObject json) {
 		Channel channel;
 
-		Pair<Map<String, IChannel.PermissionOverride>, Map<String, IChannel.PermissionOverride>> overrides =
+		Pair<Map<Long, IChannel.PermissionOverride>, Map<Long, IChannel.PermissionOverride>> overrides =
 				getPermissionOverwritesFromJSONs(
 				json.permission_overwrites);
-		Map<String, IChannel.PermissionOverride> userOverrides = overrides.getLeft();
-		Map<String, IChannel.PermissionOverride> roleOverrides = overrides.getRight();
+		Map<Long, IChannel.PermissionOverride> userOverrides = overrides.getLeft();
+		Map<Long, IChannel.PermissionOverride> roleOverrides = overrides.getRight();
 
-		if ((channel = (Channel) guild.getChannelByID(json.id)) != null) {
+		if ((channel = (Channel) guild.getChannelByID(json.getLongID())) != null) {
 			channel.setName(json.name);
 			channel.setPosition(json.position);
 			channel.setTopic(json.topic);
@@ -498,7 +509,7 @@ public class DiscordUtils {
 			channel.getRoleOverrides().clear();
 			channel.getRoleOverrides().putAll(roleOverrides);
 		} else {
-			channel = new Channel((DiscordClientImpl) guild.getClient(), json.name, json.id, guild, json.topic, json.position,
+			channel = new Channel((DiscordClientImpl) guild.getClient(), json.name, json.getLongID(), guild, json.topic, json.position,
 					roleOverrides, userOverrides);
 		}
 
@@ -511,19 +522,19 @@ public class DiscordUtils {
 	 * @param overwrites The overwrites.
 	 * @return A pair representing the overwrites per id; left value = user overrides and right value = role overrides.
 	 */
-	public static Pair<Map<String, IChannel.PermissionOverride>, Map<String, IChannel.PermissionOverride>>
+	public static Pair<Map<Long, IChannel.PermissionOverride>, Map<Long, IChannel.PermissionOverride>>
 	getPermissionOverwritesFromJSONs(
 			OverwriteObject[] overwrites) {
-		Map<String, IChannel.PermissionOverride> userOverrides = new ConcurrentHashMap<>();
-		Map<String, IChannel.PermissionOverride> roleOverrides = new ConcurrentHashMap<>();
+		Map<Long, IChannel.PermissionOverride> userOverrides = new ConcurrentHashMap<>();
+		Map<Long, IChannel.PermissionOverride> roleOverrides = new ConcurrentHashMap<>();
 
 		for (OverwriteObject overrides : overwrites) {
 			if (overrides.type.equalsIgnoreCase("role")) {
-				roleOverrides.put(overrides.id,
+				roleOverrides.put(overrides.getLongID(),
 						new IChannel.PermissionOverride(Permissions.getAllowedPermissionsForNumber(overrides.allow),
 								Permissions.getDeniedPermissionsForNumber(overrides.deny)));
 			} else if (overrides.type.equalsIgnoreCase("member")) {
-				userOverrides.put(overrides.id,
+				userOverrides.put(overrides.getLongID(),
 						new IChannel.PermissionOverride(Permissions.getAllowedPermissionsForNumber(overrides.allow),
 								Permissions.getDeniedPermissionsForNumber(overrides.deny)));
 			} else {
@@ -543,7 +554,7 @@ public class DiscordUtils {
 	 */
 	public static IRole getRoleFromJSON(IGuild guild, RoleObject json) {
 		Role role;
-		if ((role = (Role) guild.getRoleByID(json.id)) != null) {
+		if ((role = (Role) guild.getRoleByID(json.getLongID())) != null) {
 			role.setColor(json.color);
 			role.setHoist(json.hoist);
 			role.setName(json.name);
@@ -551,7 +562,7 @@ public class DiscordUtils {
 			role.setPosition(json.position);
 			role.setMentionable(json.mentionable);
 		} else {
-			role = new Role(json.position, json.permissions, json.name, json.managed, json.id, json.hoist, json.color,
+			role = new Role(json.position, json.permissions, json.name, json.managed, json.getLongID(), json.hoist, json.color,
 					json.mentionable, guild);
 			((Guild) guild).addRole(role);
 		}
@@ -578,13 +589,12 @@ public class DiscordUtils {
 	public static IVoiceChannel getVoiceChannelFromJSON(IGuild guild, ChannelObject json) {
 		VoiceChannel channel;
 
-		Pair<Map<String, IChannel.PermissionOverride>, Map<String, IChannel.PermissionOverride>> overrides =
-				getPermissionOverwritesFromJSONs(
-				json.permission_overwrites);
-		Map<String, IChannel.PermissionOverride> userOverrides = overrides.getLeft();
-		Map<String, IChannel.PermissionOverride> roleOverrides = overrides.getRight();
+		Pair<Map<Long, IChannel.PermissionOverride>, Map<Long, IChannel.PermissionOverride>> overrides =
+				getPermissionOverwritesFromJSONs(json.permission_overwrites);
+		Map<Long, IChannel.PermissionOverride> userOverrides = overrides.getLeft();
+		Map<Long, IChannel.PermissionOverride> roleOverrides = overrides.getRight();
 
-		if ((channel = (VoiceChannel) guild.getVoiceChannelByID(json.id)) != null) {
+		if ((channel = (VoiceChannel) guild.getVoiceChannelByID(json.getLongID())) != null) {
 			channel.setUserLimit(json.user_limit);
 			channel.setBitrate(json.bitrate);
 			channel.setName(json.name);
@@ -594,7 +604,7 @@ public class DiscordUtils {
 			channel.getRoleOverrides().clear();
 			channel.getRoleOverrides().putAll(roleOverrides);
 		} else {
-			channel = new VoiceChannel((DiscordClientImpl) guild.getClient(), json.name, json.id, guild, json.topic, json.position,
+			channel = new VoiceChannel((DiscordClientImpl) guild.getClient(), json.name, json.getLongID(), guild, json.topic, json.position,
 					json.user_limit, json.bitrate, roleOverrides, userOverrides);
 		}
 
@@ -786,8 +796,8 @@ public class DiscordUtils {
 	 * @param id The id.
 	 * @return The time the id was created.
 	 */
-	public static LocalDateTime getSnowflakeTimeFromID(String id) {
-		long milliseconds = DISCORD_EPOCH.add(new BigInteger(id).shiftRight(22)).longValue();
+	public static LocalDateTime getSnowflakeTimeFromID(long id) {
+		long milliseconds = DISCORD_EPOCH + (id >>> 22);
 		return LocalDateTime.ofInstant(Instant.ofEpochMilli(milliseconds), ZoneId.systemDefault());
 	}
 

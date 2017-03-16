@@ -7,7 +7,6 @@ import sx.blah.discord.handle.obj.IEmoji;
 import sx.blah.discord.handle.obj.IGuild;
 import sx.blah.discord.handle.obj.IRole;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -21,7 +20,7 @@ public class EmojiImpl implements IEmoji {
 	/**
 	 * The ID.
 	 */
-	protected final String id;
+	protected final long id;
 	/**
 	 * Roles for integration?
 	 */
@@ -39,40 +38,28 @@ public class EmojiImpl implements IEmoji {
 	 */
 	protected volatile boolean isManaged;
 
-	public EmojiImpl(IGuild guild, String id, String name, boolean requiresColons, boolean isManaged, IRole[] roles) {
-		this(guild, id, name, requiresColons, isManaged, convertRolesToIDs(roles));
-	}
-
-	public EmojiImpl(IGuild guild, String id, String name, boolean requiresColons, boolean isManaged, String[] roleIds) {
+	public EmojiImpl(IGuild guild, long id, String name, boolean requiresColons, boolean isManaged, IRole[] roles) {
 		this.guild = guild;
 		this.id = id;
 		this.name = name;
 		this.requiresColons = requiresColons;
 		this.isManaged = isManaged;
 		this.roles = new CopyOnWriteArrayList<>();
-
-		for (String roleId : roleIds) {
-			IRole role = guild.getRoleByID(roleId);
-
-			if (role != null) {
-				this.roles.add(role);
-			}
+		
+		for (IRole role : roles) {
+			this.roles.add(role);
 		}
-	}
-
-	private static String[] convertRolesToIDs(IRole[] roles) {
-		return Arrays.stream(roles).filter(role -> role != null).map(IRole::getID).toArray(String[]::new);
 	}
 
 	public void setRequiresColons(boolean requiresColons) {
 		this.requiresColons = requiresColons;
 	}
-
+	
 	@Override
-	public String getID() {
+	public long getLongID() {
 		return id;
 	}
-
+	
 	@Override
 	public IDiscordClient getClient() {
 		return getGuild().getClient();
@@ -138,11 +125,11 @@ public class EmojiImpl implements IEmoji {
 		if (other == null)
 			return false;
 
-		return this.getClass().isAssignableFrom(other.getClass()) && ((IEmoji) other).getID().equals(getID());
+		return this.getClass().isAssignableFrom(other.getClass()) && ((IEmoji) other).getLongID() == getLongID();
 	}
 
 	@Override
 	public String toString() {
-		return "<:" + getName() + ":" + getID() + ">";
+		return "<:" + getName() + ":" + getStringID() + ">";
 	}
 }

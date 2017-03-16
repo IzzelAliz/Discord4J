@@ -1,11 +1,10 @@
 package sx.blah.discord.handle.impl.obj;
 
 import sx.blah.discord.api.internal.DiscordClientImpl;
+import sx.blah.discord.handle.obj.*;
 import sx.blah.discord.util.DiscordException;
-import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.util.Image;
 import sx.blah.discord.util.MissingPermissionsException;
-import sx.blah.discord.handle.obj.*;
 import sx.blah.discord.util.RateLimitException;
 
 import java.util.*;
@@ -17,18 +16,18 @@ public class PrivateChannel extends Channel implements IPrivateChannel {
 	 */
 	protected final IUser recipient;
 
-	public PrivateChannel(DiscordClientImpl client, IUser recipient, String id) {
+	public PrivateChannel(DiscordClientImpl client, IUser recipient, long id) {
 		super(client, recipient.getName(), id, null, null, 0, new HashMap<>(), new HashMap<>());
 		this.recipient = recipient;
 	}
 
 	@Override
-	public Map<String, PermissionOverride> getUserOverrides() {
+	public Map<Long, PermissionOverride> getUserOverrides() {
 		return new HashMap<>();
 	}
 
 	@Override
-	public Map<String, PermissionOverride> getRoleOverrides() {
+	public Map<Long, PermissionOverride> getRoleOverrides() {
 		return new HashMap<>();
 	}
 
@@ -46,12 +45,12 @@ public class PrivateChannel extends Channel implements IPrivateChannel {
 	}
 
 	@Override
-	public void addUserOverride(String userId, PermissionOverride override) {
+	public void addUserOverride(long userId, PermissionOverride override) {
 		throw new UnsupportedOperationException();
 	}
 
 	@Override
-	public void addRoleOverride(String roleId, PermissionOverride override) {
+	public void addRoleOverride(long roleId, PermissionOverride override) {
 		throw new UnsupportedOperationException();
 	}
 
@@ -157,6 +156,11 @@ public class PrivateChannel extends Channel implements IPrivateChannel {
 
 	@Override
 	public IWebhook getWebhookByID(String id) {
+		throw new UnsupportedOperationException();
+	}
+	
+	@Override
+	public IWebhook getWebhookByID(long id) {
 		throw new UnsupportedOperationException();
 	}
 
