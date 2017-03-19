@@ -1,5 +1,6 @@
 package sx.blah.discord.handle.impl.obj;
 
+import com.koloboke.collect.map.hash.HashLongObjMap;
 import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.internal.*;
 import sx.blah.discord.api.internal.json.requests.VoiceChannelEditRequest;
@@ -15,7 +16,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 public class VoiceChannel extends Channel implements IVoiceChannel {
@@ -23,7 +23,7 @@ public class VoiceChannel extends Channel implements IVoiceChannel {
 	protected volatile int userLimit = 0;
 	protected volatile int bitrate = 0;
 
-	public VoiceChannel(DiscordClientImpl client, String name, long id, IGuild parent, String topic, int position, int userLimit, int bitrate, Map<Long, PermissionOverride> roleOverrides, Map<Long, PermissionOverride> userOverrides) {
+	public VoiceChannel(DiscordClientImpl client, String name, long id, IGuild parent, String topic, int position, int userLimit, int bitrate, HashLongObjMap<PermissionOverride> roleOverrides, HashLongObjMap<PermissionOverride> userOverrides) {
 		super(client, name, id, parent, topic, position, roleOverrides, userOverrides);
 		this.userLimit = userLimit;
 		this.bitrate = bitrate;
@@ -94,13 +94,15 @@ public class VoiceChannel extends Channel implements IVoiceChannel {
 		if (client.isReady()) {
 			DiscordUtils.checkPermissions(client, this, EnumSet.of(Permissions.VOICE_CONNECT));
 			if (!client.getOurUser().getConnectedVoiceChannels().contains(this)) {
-				if (((DiscordClientImpl) client).voiceConnections.containsKey(parent)) {
-					Discord4J.LOGGER.info(LogMarkers.HANDLE, "Attempting to join multiple channels in the same guild! Moving channels instead...");
-					try {
-						client.getOurUser().moveToVoiceChannel(this);
-					} catch (DiscordException | RateLimitException | MissingPermissionsException e) {
-						Discord4J.LOGGER.error(LogMarkers.HANDLE, "Unable to switch voice channels! Aborting join request...", e);
-						return;
+				synchronized (client.voiceConnections) {
+					if (client.voiceConnections.containsKey(parent.getLongID())) {
+						Discord4J.LOGGER.info(LogMarkers.HANDLE, "Attempting to join multiple channels in the same guild! Moving channels instead...");
+						try {
+							client.getOurUser().moveToVoiceChannel(this);
+						} catch (DiscordException | RateLimitException | MissingPermissionsException e) {
+							Discord4J.LOGGER.error(LogMarkers.HANDLE, "Unable to switch voice channels! Aborting join request...", e);
+							return;
+						}
 					}
 				}
 
@@ -117,8 +119,10 @@ public class VoiceChannel extends Channel implements IVoiceChannel {
 	public void leave() {
 		if (client.getConnectedVoiceChannels().contains(this)) {
 			((ShardImpl) getShard()).ws.send(GatewayOps.VOICE_STATE_UPDATE, new VoiceStateUpdateRequest(parent.getLongID(), null, false, false));
-			if (((DiscordClientImpl) client).voiceConnections.containsKey(parent)) {
-				((DiscordClientImpl) client).voiceConnections.get(parent).disconnect(VoiceDisconnectedEvent.Reason.LEFT_CHANNEL);
+			synchronized (client.voiceConnections) {
+				if (client.voiceConnections.containsKey(parent.getLongID())) {
+					client.voiceConnections.get(parent.getLongID()).disconnect(VoiceDisconnectedEvent.Reason.LEFT_CHANNEL);
+				}
 			}
 		} else {
 			Discord4J.LOGGER.warn(LogMarkers.HANDLE, "Attempted to leave a non-joined voice channel! Ignoring the method call...");
@@ -331,7 +335,7 @@ public class VoiceChannel extends Channel implements IVoiceChannel {
 	}
 
 	@Override
-	public IVoiceChannel copy() {
+	public synchronized IVoiceChannel copy() {
 		return new VoiceChannel(client, name, id, parent, topic, position, userLimit, bitrate, roleOverrides, userOverrides);
 	}
 

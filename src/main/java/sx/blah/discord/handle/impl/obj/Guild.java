@@ -1,5 +1,9 @@
 package sx.blah.discord.handle.impl.obj;
 
+import com.koloboke.collect.map.hash.HashLongObjMap;
+import com.koloboke.collect.map.hash.HashLongObjMaps;
+import com.koloboke.collect.set.hash.HashObjSet;
+import com.koloboke.collect.set.hash.HashObjSets;
 import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.IShard;
@@ -22,7 +26,6 @@ import sx.blah.discord.util.*;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
@@ -30,22 +33,22 @@ public class Guild implements IGuild {
 	/**
 	 * All text channels in the guild.
 	 */
-	protected final List<IChannel> channels;
+	protected final HashLongObjMap<IChannel> channels;
 
 	/**
 	 * All voice channels in the guild.
 	 */
-	protected final List<IVoiceChannel> voiceChannels;
+	protected final HashLongObjMap<IVoiceChannel> voiceChannels;
 
 	/**
 	 * All users connected to the guild.
 	 */
-	protected final List<IUser> users;
+	public final HashLongObjMap<IUser> users;
 
 	/**
 	 * The joined timetamps for users.
 	 */
-	protected final Map<IUser, LocalDateTime> joinTimes;
+	public final HashLongObjMap<LocalDateTime> joinTimes;
 
 	/**
 	 * The name of the guild.
@@ -75,7 +78,7 @@ public class Guild implements IGuild {
 	/**
 	 * The roles the guild contains.
 	 */
-	protected final List<IRole> roles;
+	protected final HashLongObjMap<IRole> roles;
 
 	/**
 	 * The channel where those who are afk are moved to.
@@ -114,7 +117,7 @@ public class Guild implements IGuild {
 	/**
 	 * The list of emojis.
 	 */
-	protected final List<IEmoji> emojis;
+	protected final HashObjSet<IEmoji> emojis;
 
 	/**
 	 * The total number of members in this guild
@@ -122,10 +125,10 @@ public class Guild implements IGuild {
 	private int totalMemberCount;
 
 	public Guild(IShard shard, String name, long id, String icon, long ownerID, long afkChannel, int afkTimeout, String region, int verification) {
-		this(shard, name, id, icon, ownerID, afkChannel, afkTimeout, region, verification, new CopyOnWriteArrayList<>(), new CopyOnWriteArrayList<>(), new CopyOnWriteArrayList<>(), new CopyOnWriteArrayList<>(), new ConcurrentHashMap<>());
+		this(shard, name, id, icon, ownerID, afkChannel, afkTimeout, region, verification, HashLongObjMaps.newMutableMap(), HashLongObjMaps.newMutableMap(), HashLongObjMaps.newMutableMap(), HashLongObjMaps.newMutableMap(), HashLongObjMaps.newMutableMap());
 	}
 
-	public Guild(IShard shard, String name, long id, String icon, long ownerID, long afkChannel, int afkTimeout, String region, int verification, List<IRole> roles, List<IChannel> channels, List<IVoiceChannel> voiceChannels, List<IUser> users, Map<IUser, LocalDateTime> joinTimes) {
+	public Guild(IShard shard, String name, long id, String icon, long ownerID, long afkChannel, int afkTimeout, String region, int verification, HashLongObjMap<IRole> roles, HashLongObjMap<IChannel> channels, HashLongObjMap<IVoiceChannel> voiceChannels, HashLongObjMap<IUser> users, HashLongObjMap<LocalDateTime> joinTimes) {
 		this.shard = shard;
 		this.client = shard.getClient();
 		this.name = name;
@@ -143,7 +146,7 @@ public class Guild implements IGuild {
 		this.regionID = region;
 		this.verification = VerificationLevel.get(verification);
 		this.audioManager = new AudioManager(this);
-		this.emojis = new CopyOnWriteArrayList<>();
+		this.emojis = HashObjSets.newMutableSet();
 	}
 
 	@Override
@@ -192,54 +195,58 @@ public class Guild implements IGuild {
 
 	@Override
 	public List<IChannel> getChannels() {
-		return channels;
+		synchronized (channels) {
+			return new ArrayList<>(channels.values());
+		}
 	}
 
 	@Override
 	public IChannel getChannelByID(String id) {
-		return channels.stream()
-				.filter(c -> c.getID().equalsIgnoreCase(id))
-				.findAny().orElse(null);
+		synchronized (channels) {
+			return channels.get(Long.parseUnsignedLong(id));
+		}
 	}
 	
 	@Override
 	public IChannel getChannelByID(long id) {
-		return channels.stream()
-				.filter(c -> c.getLongID() == id)
-				.findAny().orElse(null);
+		synchronized (channels) {
+			return channels.get(id);
+		}
 	}
 
 	@Override
 	public List<IUser> getUsers() {
-		return users;
+		synchronized (users) {
+			return new ArrayList<>(users.values());
+		}
 	}
 
 	@Override
-	public IUser getUserByID(String id) {
-		if (users == null)
-			return null;
-		return Arrays.stream(users.toArray(new IUser[users.size()]))
-				.filter(u -> u != null && u.getID() != null && u.getID().equalsIgnoreCase(id))
-				.findAny().orElse(null);
+	public IUser getUserByID(String id) { //TODO add backup rest request to retrieve the user
+		synchronized (users) {
+			return users.get(Long.parseUnsignedLong(id));
+		}
 	}
 	
 	@Override
-	public IUser getUserByID(long id) {
-		if (users == null)
-			return null;
-		return Arrays.stream(users.toArray(new IUser[users.size()]))
-				.filter(u -> u != null && u.getLongID() == id)
-				.findAny().orElse(null);
+	public IUser getUserByID(long id) { //TODO add backup rest request to retrieve the user
+		synchronized (users) {
+			return users.get(id);
+		}
 	}
 
 	@Override
 	public List<IChannel> getChannelsByName(String name) {
-		return channels.stream().filter((channel) -> channel.getName().equals(name)).collect(Collectors.toList());
+		synchronized (channels) {
+			return channels.values().stream().filter((channel) -> channel.getName().equals(name)).collect(Collectors.toList());
+		}
 	}
 
 	@Override
 	public List<IVoiceChannel> getVoiceChannelsByName(String name) {
-		return voiceChannels.stream().filter((channel) -> channel.getName().equals(name)).collect(Collectors.toList());
+		synchronized (voiceChannels) {
+			return voiceChannels.values().stream().filter((channel) -> channel.getName().equals(name)).collect(Collectors.toList());
+		}
 	}
 
 	@Override
@@ -249,16 +256,22 @@ public class Guild implements IGuild {
 
 	@Override
 	public List<IUser> getUsersByName(String name, boolean includeNicknames) {
-		return users.stream().filter((user) -> user.getName().equals(name)
-				|| (includeNicknames && user.getNicknameForGuild(this).orElse("").equals(name)))
-				.collect(Collectors.toList());
+		synchronized (users) {
+			return users.values().stream().filter((user) -> user.getName().equals(name)
+					|| (includeNicknames && user.getNicknameForGuild(this).orElse("").equals(name)))
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
 	public List<IUser> getUsersByRole(IRole role) {
-		return users.stream()
-				.filter(user -> user.getRolesForGuild(this).contains(role))
-				.collect(Collectors.toList());
+		synchronized (users) {
+			synchronized (roles) {
+				return users.values().stream()
+						.filter(user -> user.getRolesForGuild(this).contains(role))
+						.collect(Collectors.toList());
+			}
+		}
 	}
 
 	@Override
@@ -286,8 +299,9 @@ public class Guild implements IGuild {
 	 * @param user The user.
 	 */
 	public void addUser(IUser user) {
-		if (!this.users.contains(user) && user != null)
-			this.users.add(user);
+		synchronized (users) {
+			this.users.put(user.getLongID(), user);
+		}
 	}
 
 	/**
@@ -296,18 +310,23 @@ public class Guild implements IGuild {
 	 * @param channel The channel.
 	 */
 	public void addChannel(IChannel channel) {
-		if (!this.channels.contains(channel) && !(channel instanceof IVoiceChannel) && !(channel instanceof IPrivateChannel))
-			this.channels.add(channel);
+		synchronized (channels) {
+			this.channels.put(channel.getLongID(), channel);
+		}
 	}
 
 	@Override
 	public List<IRole> getRoles() {
-		return roles;
+		synchronized (roles) {
+			return new ArrayList<>(roles.values());
+		}
 	}
 
 	@Override
 	public List<IRole> getRolesForUser(IUser user) {
-		return user.getRolesForGuild(this);
+		synchronized (roles) {
+			return user.getRolesForGuild(this);
+		}
 	}
 
 	/**
@@ -316,46 +335,51 @@ public class Guild implements IGuild {
 	 * @param role The role.
 	 */
 	public void addRole(IRole role) {
-		if (!this.roles.contains(role))
-			this.roles.add(role);
+		synchronized (roles) {
+			this.roles.put(role.getLongID(), role);
+		}
 	}
 
 	@Override
 	public IRole getRoleByID(String id) {
-		return roles.stream()
-				.filter(r -> r.getID().equalsIgnoreCase(id))
-				.findAny().orElse(null);
+		synchronized (roles) {
+			return roles.get(Long.parseUnsignedLong(id));
+		}
 	}
 	
 	@Override
 	public IRole getRoleByID(long id) {
-		return roles.stream()
-				.filter(r -> r.getLongID() == id)
-				.findAny().orElse(null);
+		synchronized (roles) {
+			return roles.get(id);
+		}
 	}
 
 	@Override
 	public List<IRole> getRolesByName(String name) {
-		return roles.stream().filter((role) -> role.getName().equals(name)).collect(Collectors.toList());
+		synchronized (roles) {
+			return roles.values().stream().filter((role) -> role.getName().equals(name)).collect(Collectors.toList());
+		}
 	}
 
 	@Override
 	public List<IVoiceChannel> getVoiceChannels() {
-		return voiceChannels;
+		synchronized (voiceChannels) {
+			return new ArrayList<>(voiceChannels.values());
+		}
 	}
 
 	@Override
 	public IVoiceChannel getVoiceChannelByID(String id) {
-		return voiceChannels.stream()
-				.filter(c -> c.getID().equals(id))
-				.findAny().orElse(null);
+		synchronized (voiceChannels) {
+			return voiceChannels.get(Long.parseUnsignedLong(id));
+		}
 	}
 	
 	@Override
 	public IVoiceChannel getVoiceChannelByID(long id) {
-		return voiceChannels.stream()
-				.filter(c -> c.getLongID() == id)
-				.findAny().orElse(null);
+		synchronized (voiceChannels) {
+			return voiceChannels.get(id);
+		}
 	}
 
 	@Override
@@ -365,9 +389,11 @@ public class Guild implements IGuild {
 
 	@Override
 	public IVoiceChannel getConnectedVoiceChannel() {
-		return client.getConnectedVoiceChannels().stream()
-				.filter((c -> voiceChannels.contains(c)))
-				.findFirst().orElse(null);
+		synchronized (voiceChannels) {
+			return client.getConnectedVoiceChannels().stream()
+					.filter((voiceChannels::containsValue))
+					.findFirst().orElse(null);
+		}
 	}
 
 	@Override
@@ -384,8 +410,9 @@ public class Guild implements IGuild {
 	}
 
 	public void addVoiceChannel(IVoiceChannel channel) {
-		if (!voiceChannels.contains(channel) && !(channel instanceof IPrivateChannel))
-			voiceChannels.add(channel);
+		synchronized (voiceChannels) {
+			voiceChannels.put(channel.getLongID(), channel);
+		}
 	}
 
 	@Override
@@ -706,59 +733,56 @@ public class Guild implements IGuild {
 		return audioManager;
 	}
 
-	/**
-	 * This gets the CACHED join times map.
-	 *
-	 * @return The join times.
-	 */
-	public Map<IUser, LocalDateTime> getJoinTimes() {
-		return joinTimes;
-	}
-
 	@Override
 	public LocalDateTime getJoinTimeForUser(IUser user) throws DiscordException {
-		if (!joinTimes.containsKey(user))
-			throw new DiscordException("Cannot find user "+user.getDisplayName(this)+" in this guild!");
-
-		return joinTimes.get(user);
+		synchronized (joinTimes) {
+			if (!joinTimes.containsKey(user.getLongID()))
+				throw new DiscordException("Cannot find user "+user.getDisplayName(this)+" in this guild!");
+			
+			return joinTimes.get(user.getLongID());
+		}
 	}
 
 	@Override
 	public IMessage getMessageByID(String id) {
-		IMessage message =  channels.stream()
-									.map(IChannel::getMessageHistory)
-									.flatMap(List::stream)
-									.filter(msg -> msg.getID().equalsIgnoreCase(id))
-									.findAny().orElse(null);
-
-		if (message == null) {
-			for (IChannel channel : channels) {
-				message = channel.getMessageByID(id);
-				if (message != null)
-					return message;
+		synchronized (channels) {
+			IMessage message = channels.values().stream()
+					.map(IChannel::getMessageHistory)
+					.flatMap(List::stream)
+					.filter(msg -> msg.getLongID() == Long.parseUnsignedLong(id))
+					.findFirst().orElse(null);
+			
+			if (message == null) {
+				for (IChannel channel : channels.values()) {
+					message = channel.getMessageByID(id);
+					if (message != null)
+						return message;
+				}
 			}
+			
+			return message;
 		}
-
-		return message;
 	}
 	
 	@Override
 	public IMessage getMessageByID(long id) {
-		IMessage message =  channels.stream()
-				.map(IChannel::getMessageHistory)
-				.flatMap(List::stream)
-				.filter(msg -> msg.getLongID() == id)
-				.findAny().orElse(null);
-		
-		if (message == null) {
-			for (IChannel channel : channels) {
-				message = channel.getMessageByID(id);
-				if (message != null)
-					return message;
+		synchronized (channels) {
+			IMessage message = channels.values().stream()
+					.map(IChannel::getMessageHistory)
+					.flatMap(List::stream)
+					.filter(msg -> msg.getLongID() == id)
+					.findAny().orElse(null);
+			
+			if (message == null) {
+				for (IChannel channel : channels.values()) {
+					message = channel.getMessageByID(id);
+					if (message != null)
+						return message;
+				}
 			}
+			
+			return message;
 		}
-		
-		return message;
 	}
 
 	@Override
@@ -772,64 +796,80 @@ public class Guild implements IGuild {
 	}
 
 	@Override
-	public IGuild copy() {
+	public synchronized IGuild copy() {
 		return new Guild(shard, name, id, icon, ownerID, afkChannel, afkTimeout, regionID, verification.ordinal(),
 				roles, channels, voiceChannels, users, joinTimes);
 	}
 
 	@Override
 	public List<IEmoji> getEmojis() {
-		return emojis;
+		synchronized (emojis) {
+			return new ArrayList<>(emojis);
+		}
 	}
 
 	@Override
 	public IEmoji getEmojiByID(String idToUse) {
-		return emojis.stream().filter(iemoji -> iemoji.getID().equals(idToUse)).findFirst().orElse(null);
+		synchronized (emojis) {
+			return emojis.stream().filter(iemoji -> iemoji.getID().equals(idToUse)).findFirst().orElse(null);
+		}
 	}
 	
 	@Override
 	public IEmoji getEmojiByID(long idToUse) {
-		return emojis.stream().filter(iemoji -> iemoji.getLongID() == idToUse).findFirst().orElse(null);
+		synchronized (emojis) {
+			return emojis.stream().filter(iemoji -> iemoji.getLongID() == idToUse).findFirst().orElse(null);
+		}
 	}
 
 	@Override
 	public IEmoji getEmojiByName(String name) {
-		return emojis.stream().filter(iemoji -> iemoji.getName().equals(name)).findFirst().orElse(null);
+		synchronized (emojis) {
+			return emojis.stream().filter(iemoji -> iemoji.getName().equals(name)).findFirst().orElse(null);
+		}
 	}
 
 	@Override
 	public IWebhook getWebhookByID(String id) {
-		return channels.stream()
-				.map(IChannel::getWebhooks)
-				.flatMap(List::stream)
-				.filter(hook -> hook.getID().equals(id))
-				.findAny().orElse(null);
+		synchronized (channels) {
+			return channels.values().stream()
+					.map(IChannel::getWebhooks)
+					.flatMap(List::stream)
+					.filter(hook -> hook.getID().equals(id))
+					.findAny().orElse(null);
+		}
 	}
 	
 	@Override
 	public IWebhook getWebhookByID(long id) {
-		return channels.stream()
-				.map(IChannel::getWebhooks)
-				.flatMap(List::stream)
-				.filter(hook -> hook.getLongID() == id)
-				.findAny().orElse(null);
+		synchronized (channels) {
+			return channels.values().stream()
+					.map(IChannel::getWebhooks)
+					.flatMap(List::stream)
+					.filter(hook -> hook.getLongID() == id)
+					.findAny().orElse(null);
+		}
 	}
 
 	@Override
 	public List<IWebhook> getWebhooksByName(String name) {
-		return channels.stream()
-				.map(IChannel::getWebhooks)
-				.flatMap(List::stream)
-				.filter(hook -> hook.getDefaultName().equals(name))
-				.collect(Collectors.toList());
+		synchronized (channels) {
+			return channels.values().stream()
+					.map(IChannel::getWebhooks)
+					.flatMap(List::stream)
+					.filter(hook -> hook.getDefaultName().equals(name))
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
 	public List<IWebhook> getWebhooks() {
-		return channels.stream()
-				.map(IChannel::getWebhooks)
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
+		synchronized (channels) {
+			return channels.values().stream()
+					.map(IChannel::getWebhooks)
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
 	}
 
 	public void loadWebhooks() {

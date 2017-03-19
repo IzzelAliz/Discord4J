@@ -5,8 +5,8 @@ import sx.blah.discord.handle.audio.IAudioProvider;
 import sx.blah.discord.handle.audio.impl.DefaultProcessor;
 import sx.blah.discord.handle.audio.impl.DefaultProvider;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * This is an {@link IAudioProcessor} implementation which can combine multiple processors.
@@ -14,7 +14,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class MultiProcessor implements IAudioProcessor {
 
-	private final CopyOnWriteArrayList<IAudioProcessor> processors = new CopyOnWriteArrayList<>();
+	private final List<IAudioProcessor> processors = new ArrayList<>();
 	private volatile IAudioProvider provider = new DefaultProvider();
 	private volatile IAudioProcessor finalProcessor;
 

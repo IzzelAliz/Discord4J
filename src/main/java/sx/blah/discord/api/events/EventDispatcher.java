@@ -1,5 +1,9 @@
 package sx.blah.discord.api.events;
 
+import com.koloboke.collect.map.hash.HashObjObjMap;
+import com.koloboke.collect.map.hash.HashObjObjMaps;
+import com.koloboke.collect.set.hash.HashObjSet;
+import com.koloboke.collect.set.hash.HashObjSets;
 import net.jodah.typetools.TypeResolver;
 import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.IDiscordClient;
@@ -23,8 +27,8 @@ import java.util.function.Predicate;
  */
 public class EventDispatcher {
 
-	private final ConcurrentHashMap<Class<?>, ConcurrentHashMap<Method, CopyOnWriteArrayList<ListenerPair<Object>>>> methodListeners = new ConcurrentHashMap<>();
-	private final ConcurrentHashMap<Class<?>, CopyOnWriteArrayList<ListenerPair<IListener>>> classListeners = new ConcurrentHashMap<>();
+	private final HashObjObjMap<Class<?>, HashObjObjMap<Method, HashObjSet<ListenerPair<Object>>>> methodListeners = HashObjObjMaps.newMutableMap();
+	private final HashObjObjMap<Class<?>, HashObjSet<ListenerPair<IListener>>> classListeners = HashObjObjMaps.newMutableMap();
 	private final ExecutorService eventExecutor = Executors.newCachedThreadPool(DiscordUtils.createDaemonThreadFactory("Event Dispatcher Handler"));
 	private final IDiscordClient client;
 
@@ -103,14 +107,16 @@ public class EventDispatcher {
 					method.setAccessible(true);
 					Class<?> eventClass = method.getParameterTypes()[0];
 					if (Event.class.isAssignableFrom(eventClass)) {
-						if (!methodListeners.containsKey(eventClass))
-							methodListeners.put(eventClass, new ConcurrentHashMap<>());
-
-						if (!methodListeners.get(eventClass).containsKey(method))
-							methodListeners.get(eventClass).put(method, new CopyOnWriteArrayList<>());
-
-						methodListeners.get(eventClass).get(method).add(new ListenerPair<>(isTemporary, listener));
-						Discord4J.LOGGER.trace(LogMarkers.EVENTS, "Registered method listener {}#{}", listenerClass.getSimpleName(), method.getName());
+						synchronized (methodListeners) {
+							if (!methodListeners.containsKey(eventClass))
+								methodListeners.put(eventClass, HashObjObjMaps.newMutableMap());
+							
+							if (!methodListeners.get(eventClass).containsKey(method))
+								methodListeners.get(eventClass).put(method, HashObjSets.newMutableSet());
+							
+							methodListeners.get(eventClass).get(method).add(new ListenerPair<>(isTemporary, listener));
+							Discord4J.LOGGER.trace(LogMarkers.EVENTS, "Registered method listener {}#{}", listenerClass.getSimpleName(), method.getName());
+						}
 					}
 				}
 			}
@@ -120,11 +126,13 @@ public class EventDispatcher {
 	private <T extends Event> void registerListener(IListener<T> listener, boolean isTemporary) {
 		Class<?> rawType = TypeResolver.resolveRawArgument(IListener.class, listener.getClass());
 		if (Event.class.isAssignableFrom(rawType)) {
-			if (!classListeners.containsKey(rawType))
-				classListeners.put(rawType, new CopyOnWriteArrayList<>());
-
-			Discord4J.LOGGER.trace(LogMarkers.EVENTS, "Registered IListener {}", listener.getClass().getSimpleName());
-			classListeners.get(rawType).add(new ListenerPair<>(isTemporary, listener));
+			synchronized (classListeners) {
+				if (!classListeners.containsKey(rawType))
+					classListeners.put(rawType, HashObjSets.newMutableSet());
+				
+				Discord4J.LOGGER.trace(LogMarkers.EVENTS, "Registered IListener {}", listener.getClass().getSimpleName());
+				classListeners.get(rawType).add(new ListenerPair<>(isTemporary, listener));
+			}
 		}
 	}
 
@@ -310,11 +318,13 @@ public class EventDispatcher {
 				if (method.getParameterCount() == 1) {
 					Class<?> eventClass = method.getParameterTypes()[0];
 					if (Event.class.isAssignableFrom(eventClass)) {
-						if (methodListeners.containsKey(eventClass))
-							if (methodListeners.get(eventClass).containsKey(method)) {
-								methodListeners.get(eventClass).get(method).removeIf((ListenerPair pair) -> pair.listener == listener); //Yes, the == is intentional. We want the exact same instance.
-								Discord4J.LOGGER.trace(LogMarkers.EVENTS, "Unregistered method listener {}", listener.getClass().getSimpleName(), method.toString());
-							}
+						synchronized (methodListeners) {
+							if (methodListeners.containsKey(eventClass))
+								if (methodListeners.get(eventClass).containsKey(method)) {
+									methodListeners.get(eventClass).get(method).removeIf((ListenerPair pair) -> pair.listener == listener); //Yes, the == is intentional. We want the exact same instance.
+									Discord4J.LOGGER.trace(LogMarkers.EVENTS, "Unregistered method listener {}", listener.getClass().getSimpleName(), method.toString());
+								}
+						}
 					}
 				}
 			}
@@ -331,11 +341,13 @@ public class EventDispatcher {
 			if (method.getParameterCount() == 1) {
 				Class<?> eventClass = method.getParameterTypes()[0];
 				if (Event.class.isAssignableFrom(eventClass)) {
-					if (methodListeners.containsKey(eventClass))
-						if (methodListeners.get(eventClass).containsKey(method)) {
-							methodListeners.get(eventClass).get(method).removeIf((ListenerPair pair) -> pair.listener == null); // null for static listener
-							Discord4J.LOGGER.trace(LogMarkers.EVENTS, "Unregistered class method listener {}", clazz.getSimpleName(), method.toString());
-						}
+					synchronized (methodListeners) {
+						if (methodListeners.containsKey(eventClass))
+							if (methodListeners.get(eventClass).containsKey(method)) {
+								methodListeners.get(eventClass).get(method).removeIf((ListenerPair pair) -> pair.listener == null); // null for static listener
+								Discord4J.LOGGER.trace(LogMarkers.EVENTS, "Unregistered class method listener {}", clazz.getSimpleName(), method.toString());
+							}
+					}
 				}
 			}
 		}
@@ -349,9 +361,11 @@ public class EventDispatcher {
 	public void unregisterListener(IListener listener) {
 		Class<?> rawType = TypeResolver.resolveRawArgument(IListener.class, listener.getClass());
 		if (Event.class.isAssignableFrom(rawType)) {
-			if (classListeners.containsKey(rawType)) {
-				classListeners.get(rawType).removeIf((ListenerPair pair) -> pair.listener == listener); //Yes, the == is intentional. We want the exact same instance.
-				Discord4J.LOGGER.trace(LogMarkers.EVENTS, "Unregistered IListener {}", listener.getClass().getSimpleName());
+			synchronized (classListeners) {
+				if (classListeners.containsKey(rawType)) {
+					classListeners.get(rawType).removeIf((ListenerPair pair) -> pair.listener == listener); //Yes, the == is intentional. We want the exact same instance.
+					Discord4J.LOGGER.trace(LogMarkers.EVENTS, "Unregistered IListener {}", listener.getClass().getSimpleName());
+				}
 			}
 		}
 	}
@@ -366,40 +380,44 @@ public class EventDispatcher {
 			Discord4J.LOGGER.trace(LogMarkers.EVENTS, "Dispatching event of type {}", event.getClass().getSimpleName());
 			event.client = client;
 
-			methodListeners.entrySet().stream()
-					.filter(e -> e.getKey().isAssignableFrom(event.getClass()))
-					.map(Map.Entry::getValue)
-					.forEach(m ->
-							m.forEach((k, v) ->
-									v.forEach(o -> {
-										try {
-											k.invoke(o.listener, event);
-											if (o.isTemporary)
-												unregisterListener(o.listener);
-										} catch (IllegalAccessException e) {
-											Discord4J.LOGGER.error(LogMarkers.EVENTS, "Error dispatching event " + event.getClass().getSimpleName(), e);
-										} catch(InvocationTargetException e) {
-											Discord4J.LOGGER.error(LogMarkers.EVENTS, "Unhandled exception caught dispatching event "+event.getClass().getSimpleName(), e.getCause());
-										} catch (Exception e) {
-											Discord4J.LOGGER.error(LogMarkers.EVENTS, "Unhandled exception caught dispatching event "+event.getClass().getSimpleName(), e);
-										}
-									})));
+			synchronized (methodListeners) {
+				methodListeners.entrySet().stream()
+						.filter(e -> e.getKey().isAssignableFrom(event.getClass()))
+						.map(Map.Entry::getValue)
+						.forEach(m ->
+								m.forEach((k, v) ->
+										v.forEach(o -> {
+											try {
+												k.invoke(o.listener, event);
+												if (o.isTemporary)
+													unregisterListener(o.listener);
+											} catch (IllegalAccessException e) {
+												Discord4J.LOGGER.error(LogMarkers.EVENTS, "Error dispatching event "+event.getClass().getSimpleName(), e);
+											} catch (InvocationTargetException e) {
+												Discord4J.LOGGER.error(LogMarkers.EVENTS, "Unhandled exception caught dispatching event "+event.getClass().getSimpleName(), e.getCause());
+											} catch (Exception e) {
+												Discord4J.LOGGER.error(LogMarkers.EVENTS, "Unhandled exception caught dispatching event "+event.getClass().getSimpleName(), e);
+											}
+										})));
+			}
 
-			classListeners.entrySet().stream()
-					.filter(e -> e.getKey().isAssignableFrom(event.getClass()))
-					.map(Map.Entry::getValue)
-					.forEach(s -> s.forEach(l -> {
-						try {
-							l.listener.handle(event);
-
-							if (l.isTemporary)
-								unregisterListener(l.listener);
-						} catch (ClassCastException e) {
-							//FIXME: This occurs when a lambda expression is used to create an IListener leading it to be registered under the type 'Event'. This is due to a bug in TypeTools: https://github.com/jhalterman/typetools/issues/14
-					    } catch (Exception e) {
-							Discord4J.LOGGER.error(LogMarkers.EVENTS, "Unhandled exception caught dispatching event "+event.getClass().getSimpleName(), e);
-						}
-					}));
+			synchronized (classListeners) {
+				classListeners.entrySet().stream()
+						.filter(e -> e.getKey().isAssignableFrom(event.getClass()))
+						.map(Map.Entry::getValue)
+						.forEach(s -> s.forEach(l -> {
+							try {
+								l.listener.handle(event);
+								
+								if (l.isTemporary)
+									unregisterListener(l.listener);
+							} catch (ClassCastException e) {
+								//FIXME: This occurs when a lambda expression is used to create an IListener leading it to be registered under the type 'Event'. This is due to a bug in TypeTools: https://github.com/jhalterman/typetools/issues/14
+							} catch (Exception e) {
+								Discord4J.LOGGER.error(LogMarkers.EVENTS, "Unhandled exception caught dispatching event "+event.getClass().getSimpleName(), e);
+							}
+						}));
+			}
 		});
 	}
 

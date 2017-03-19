@@ -1,5 +1,9 @@
 package sx.blah.discord.api.internal;
 
+import com.koloboke.collect.map.hash.HashLongObjMap;
+import com.koloboke.collect.map.hash.HashLongObjMaps;
+import com.koloboke.collect.set.hash.HashObjSet;
+import com.koloboke.collect.set.hash.HashObjSets;
 import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.IShard;
@@ -19,8 +23,6 @@ import sx.blah.discord.util.*;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 /**
@@ -35,7 +37,7 @@ public final class DiscordClientImpl implements IDiscordClient {
 	/**
 	 * The shards this client controls.
 	 */
-	private final List<IShard> shards = new CopyOnWriteArrayList<>();
+	private final HashObjSet<IShard> shards = HashObjSets.newMutableSet();
 
 	/**
 	 * User we are logged in as
@@ -50,27 +52,27 @@ public final class DiscordClientImpl implements IDiscordClient {
 	/**
 	 * Event dispatcher.
 	 */
-	volatile EventDispatcher dispatcher;
+	final EventDispatcher dispatcher;
 
 	/**
 	 * Reconnect manager.
 	 */
-	volatile ReconnectManager reconnectManager;
+	final ReconnectManager reconnectManager;
 
 	/**
 	 * The module loader for this client.
 	 */
-	private volatile ModuleLoader loader;
+	private final ModuleLoader loader;
 
 	/**
 	 * Caches the available regions for discord.
 	 */
-	private final List<IRegion> REGIONS = new CopyOnWriteArrayList<>();
+	private final HashObjSet<IRegion> REGIONS = HashObjSets.newMutableSet();
 
 	/**
 	 * Holds the active connections to voice sockets.
 	 */
-	public final Map<IGuild, DiscordVoiceWS> voiceConnections = new ConcurrentHashMap<>();
+	public final HashLongObjMap<DiscordVoiceWS> voiceConnections = HashLongObjMaps.newMutableMap();
 
 	/**
 	 * The maximum amount of pings discord can miss before a new session is created.
@@ -85,7 +87,7 @@ public final class DiscordClientImpl implements IDiscordClient {
 	/**
 	 * The total number of shards this client manages.
 	 */
-	private int shardCount;
+	private final int shardCount;
 
 	/**
 	 * The requests holder object.
@@ -120,7 +122,9 @@ public final class DiscordClientImpl implements IDiscordClient {
 
 	@Override
 	public List<IShard> getShards() {
-		return this.shards;
+		synchronized (shards) {
+			return new ArrayList<>(this.shards);
+		}
 	}
 
 	@Override
@@ -167,16 +171,18 @@ public final class DiscordClientImpl implements IDiscordClient {
 
 	@Override
 	public List<IRegion> getRegions() throws DiscordException, RateLimitException {
-		if (REGIONS.isEmpty()) {
-			VoiceRegionObject[] regions = REQUESTS.GET.makeRequest(
-					DiscordEndpoints.VOICE+"regions", VoiceRegionObject[].class);
-
-			Arrays.stream(regions)
-					.map(DiscordUtils::getRegionFromJSON)
-					.forEach(REGIONS::add);
+		synchronized (REGIONS) {
+			if (REGIONS.isEmpty()) {
+				VoiceRegionObject[] regions = REQUESTS.GET.makeRequest(
+						DiscordEndpoints.VOICE+"regions", VoiceRegionObject[].class);
+				
+				Arrays.stream(regions)
+						.map(DiscordUtils::getRegionFromJSON)
+						.forEach(REGIONS::add);
+			}
+			
+			return new ArrayList<>(REGIONS);
 		}
-
-		return REGIONS;
 	}
 
 	@Override
@@ -252,8 +258,11 @@ public final class DiscordClientImpl implements IDiscordClient {
 			UserObject owner = getApplicationInfo().owner;
 
 			IUser user = getUserByID(owner.getLongID());
-			if (user == null)
-				user = DiscordUtils.getUserFromJSON(getShards().get(0), owner);
+			if (user == null) {
+				synchronized (shards) {
+					user = DiscordUtils.getUserFromJSON(shards.cursor().elem(), owner);
+				}
+			}
 
 			return user;
 		} catch (RateLimitException e) {
@@ -282,8 +291,10 @@ public final class DiscordClientImpl implements IDiscordClient {
 
 	@Override
 	public void login() throws DiscordException, RateLimitException {
-		if (!getShards().isEmpty()) {
-			throw new DiscordException("Attempt to login client more than once.");
+		synchronized (shards) {
+			if (!shards.isEmpty()) {
+				throw new DiscordException("Attempt to login client more than once.");
+			}
 		}
 
 		validateToken();
@@ -291,16 +302,17 @@ public final class DiscordClientImpl implements IDiscordClient {
 		String gateway = obtainGateway();
 		new RequestBuilder(this).setAsync(true).doAction(() -> {
 			for (int i = 0; i < shardCount; i++) {
-				final int shardNum = i;
-				ShardImpl shard = new ShardImpl(this, gateway, shardNum, shardCount);
-				getShards().add(shardNum, shard);
-				shard.login();
-
-				getDispatcher().waitFor(ShardReadyEvent.class);
-
-				if (i != shardCount - 1) { // all but last
-					Discord4J.LOGGER.trace(LogMarkers.API, "Sleeping for login ratelimit.");
-					Thread.sleep(5000);
+				synchronized (shards) {
+					ShardImpl shard = new ShardImpl(this, gateway, i, shardCount);
+					shards.add(shard);
+					shard.login();
+					
+					getDispatcher().waitFor(ShardReadyEvent.class);
+					
+					if (i != shardCount-1) { // all but last
+						Discord4J.LOGGER.trace(LogMarkers.API, "Sleeping for login ratelimit.");
+						Thread.sleep(5000);
+					}
 				}
 			}
 			getDispatcher().dispatch(new ReadyEvent());
@@ -320,73 +332,98 @@ public final class DiscordClientImpl implements IDiscordClient {
 
 	@Override
 	public void logout() throws DiscordException {
-		for (IShard shard : getShards()) {
-			shard.logout();
+		synchronized (shards) {
+			for (IShard shard : shards) {
+				shard.logout();
+			}
+			shards.clear();
 		}
-		getShards().clear();
-		if (keepAlive != null) keepAlive.cancel();
+		if (keepAlive != null)
+			keepAlive.cancel();
 	}
 
 	@Override
 	public boolean isLoggedIn() {
-		return getShards().size() == getShardCount() && getShards().stream().map(IShard::isLoggedIn).allMatch(bool -> bool);
+		synchronized (shards) {
+			return shards.size() == getShardCount() && shards.stream().map(IShard::isLoggedIn).allMatch(bool -> bool);
+		}
 	}
 
 	@Override
 	public boolean isReady() {
-		return getShards().size() == getShardCount() && getShards().stream().map(IShard::isReady).allMatch(bool -> bool);
+		synchronized (shards) {
+			return shards.size() == getShardCount() && shards.stream().map(IShard::isReady).allMatch(bool -> bool);
+		}
 	}
 
 	@Override
 	@Deprecated
 	public void changeStatus(Status status) {
 		// old functionality just in case
-		getShards().forEach(s -> s.changeStatus(status));
+		synchronized (shards) {
+			shards.forEach(s -> s.changeStatus(status));
+		}
 	}
 
 	@Override
 	@Deprecated
 	public void changePresence(boolean isIdle) {
 		// old functionality just in case
-		getShards().forEach(s -> s.changePresence(isIdle));
+		synchronized (shards) {
+			shards.forEach(s -> s.changePresence(isIdle));
+		}
 	}
 
 	@Override
 	public void changePlayingText(String playingText) {
-		getShards().forEach(s -> s.changePlayingText(playingText));
+		synchronized (shards) {
+			shards.forEach(s -> s.changePlayingText(playingText));
+		}
 	}
 
 	@Override
 	public void online(String playingText) {
-		getShards().forEach(s -> s.online(playingText));
+		synchronized (shards) {
+			shards.forEach(s -> s.online(playingText));
+		}
 	}
 
 	@Override
 	public void online() {
-		getShards().forEach(IShard::online);
+		synchronized (shards) {
+			shards.forEach(IShard::online);
+		}
 	}
 
 	@Override
 	public void idle(String playingText) {
-		getShards().forEach(s -> s.idle(playingText));
+		synchronized (shards) {
+			shards.forEach(s -> s.idle(playingText));
+		}
 	}
 
 	@Override
 	public void idle() {
-		getShards().forEach(IShard::idle);
+		synchronized (shards) {
+			shards.forEach(IShard::idle);
+		}
 	}
 
 	@Override
 	public void streaming(String playingText, String streamingUrl) {
-		getShards().forEach(s -> s.streaming(playingText, streamingUrl));
+		synchronized (shards) {
+			shards.forEach(s -> s.streaming(playingText, streamingUrl));
+		}
 	}
 
 	@Override
 	public List<IGuild> getGuilds() {
-		return getShards().stream()
-				.map(IShard::getGuilds)
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
+		synchronized (shards) {
+			return shards.stream()
+					.map(IShard::getGuilds)
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
@@ -405,18 +442,22 @@ public final class DiscordClientImpl implements IDiscordClient {
 
 	@Override
 	public List<IChannel> getChannels(boolean includePrivate) {
-		return getShards().stream()
-				.map(c -> c.getChannels(includePrivate))
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
+		synchronized (shards) {
+			return shards.stream()
+					.map(c -> c.getChannels(includePrivate))
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
 	public List<IChannel> getChannels() {
-		return getShards().stream()
-				.map(IShard::getChannels)
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
+		synchronized (shards) {
+			return shards.stream()
+					.map(IShard::getChannels)
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
@@ -435,10 +476,12 @@ public final class DiscordClientImpl implements IDiscordClient {
 
 	@Override
 	public List<IVoiceChannel> getVoiceChannels() {
-		return getShards().stream()
-				.map(IShard::getVoiceChannels)
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
+		synchronized (shards) {
+			return shards.stream()
+					.map(IShard::getVoiceChannels)
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
@@ -462,10 +505,12 @@ public final class DiscordClientImpl implements IDiscordClient {
 
 	@Override
 	public List<IUser> getUsers() {
-		return getShards().stream()
-				.map(IShard::getUsers)
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
+		synchronized (shards) {
+			return shards.stream()
+					.map(IShard::getUsers)
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
@@ -484,10 +529,12 @@ public final class DiscordClientImpl implements IDiscordClient {
 
 	@Override
 	public List<IRole> getRoles() {
-		return getShards().stream()
-				.map(IShard::getRoles)
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
+		synchronized (shards) {
+			return shards.stream()
+					.map(IShard::getRoles)
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
@@ -506,18 +553,22 @@ public final class DiscordClientImpl implements IDiscordClient {
 
 	@Override
 	public List<IMessage> getMessages(boolean includePrivate) {
-		return getShards().stream()
-				.map(c -> c.getMessages(includePrivate))
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
+		synchronized (shards) {
+			return shards.stream()
+					.map(c -> c.getMessages(includePrivate))
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
 	public List<IMessage> getMessages() {
-		return getShards().stream()
-				.map(IShard::getMessages)
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
+		synchronized (shards) {
+			return shards.stream()
+					.map(IShard::getMessages)
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
@@ -536,8 +587,10 @@ public final class DiscordClientImpl implements IDiscordClient {
 
 	@Override
 	public IPrivateChannel getOrCreatePMChannel(IUser user) throws DiscordException, RateLimitException {
-		IShard shard = getShards().stream().filter(s -> s.getUserByID(user.getID()) != null).findFirst().get();
-		return shard.getOrCreatePMChannel(user);
+		synchronized (shards) {
+			IShard shard = shards.stream().filter(s -> s.getUserByID(user.getLongID()) != null).findFirst().get();
+			return shard.getOrCreatePMChannel(user);
+		}
 	}
 
 	@Override

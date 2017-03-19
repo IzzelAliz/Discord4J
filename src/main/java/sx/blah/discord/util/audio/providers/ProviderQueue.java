@@ -3,8 +3,8 @@ package sx.blah.discord.util.audio.providers;
 import sx.blah.discord.handle.audio.IAudioProvider;
 import sx.blah.discord.handle.audio.impl.DefaultProvider;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The ProviderQueue is an {@link IAudioProvider} implementation which allows for audio providers to be queued so that
@@ -13,7 +13,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class ProviderQueue implements IAudioProvider {
 
-	private final CopyOnWriteArrayList<IAudioProvider> providers = new CopyOnWriteArrayList<>();
+	private final List<IAudioProvider> providers = new ArrayList<>();
 
 	public ProviderQueue() {
 

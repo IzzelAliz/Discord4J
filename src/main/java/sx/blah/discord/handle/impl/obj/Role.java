@@ -44,7 +44,7 @@ public class Role implements IRole {
 	/**
 	 * The role id
 	 */
-	protected volatile long id;
+	protected final long id;
 
 	/**
 	 * Whether to display this role separately from others
@@ -64,7 +64,7 @@ public class Role implements IRole {
 	/**
 	 * The guild this role belongs to
 	 */
-	protected volatile IGuild guild;
+	protected final IGuild guild;
 
 	public Role(int position, int permissions, String name, boolean managed, long id, boolean hoist, int color, boolean mentionable, IGuild guild) {
 		this.position = position;
@@ -231,7 +231,7 @@ public class Role implements IRole {
 	}
 
 	@Override
-	public IRole copy() {
+	public synchronized IRole copy() {
 		return new Role(position, Permissions.generatePermissionsNumber(permissions), name, managed, id, hoist,
 				color.getRGB(), mentionable, guild);
 	}
@@ -263,7 +263,7 @@ public class Role implements IRole {
 
 	@Override
 	public String mention() {
-		return isMentionable() ? (isEveryoneRole() ? "@everyone" : "<@&"+id+">") : name;
+		return isMentionable() ? (isEveryoneRole() ? "@everyone" : "<@&"+getStringID()+">") : name;
 	}
 
 	@Override
@@ -281,6 +281,6 @@ public class Role implements IRole {
 		if (other == null)
 			return false;
 
-		return this.getClass().isAssignableFrom(other.getClass()) && ((IRole) other).getID().equals(getID());
+		return this.getClass().isAssignableFrom(other.getClass()) && ((IRole) other).getLongID() == getLongID();
 	}
 }

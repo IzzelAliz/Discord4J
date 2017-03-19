@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -34,10 +33,10 @@ public class ModuleLoader {
 	 * This is the directory external modules are located in
 	 */
 	public static final String MODULE_DIR = "modules";
-	protected static final List<Class<? extends IModule>> modules = new CopyOnWriteArrayList<>();
+	protected static final List<Class<? extends IModule>> modules = new ArrayList<>();
 
-	private IDiscordClient client;
-	private List<IModule> loadedModules = new CopyOnWriteArrayList<>();
+	private final IDiscordClient client;
+	private List<IModule> loadedModules = new ArrayList<>();
 
 	static {
 		// Yay! Proprietary hooks. This is used for ModuleLoader+ (https://github.com/Discord4J-Addons/Module-Loader-Plus)
@@ -70,26 +69,30 @@ public class ModuleLoader {
 	public ModuleLoader(IDiscordClient client) {
 		this.client = client;
 
-		for (Class<? extends IModule> clazz : modules) {
-			try {
-				IModule module = clazz.newInstance();
-				Discord4J.LOGGER.info(LogMarkers.MODULES, "Loading module {} v{} by {}", module.getName(), module.getVersion(), module.getAuthor());
-				if (canModuleLoad(module)) {
-					loadedModules.add(module);
-				} else {
-					Discord4J.LOGGER.warn(LogMarkers.MODULES, "Skipped loading of module {} (expected Discord4J v{} instead of v{})", module.getName(), module.getMinimumDiscord4JVersion(), Discord4J.VERSION);
+		synchronized (modules) {
+			synchronized (loadedModules) {
+				for (Class<? extends IModule> clazz : modules) {
+					try {
+						IModule module = clazz.newInstance();
+						Discord4J.LOGGER.info(LogMarkers.MODULES, "Loading module {} v{} by {}", module.getName(), module.getVersion(), module.getAuthor());
+						if (canModuleLoad(module)) {
+							loadedModules.add(module);
+						} else {
+							Discord4J.LOGGER.warn(LogMarkers.MODULES, "Skipped loading of module {} (expected Discord4J v{} instead of v{})", module.getName(), module.getMinimumDiscord4JVersion(), Discord4J.VERSION);
+						}
+					} catch (InstantiationException | IllegalAccessException e) {
+						Discord4J.LOGGER.error(LogMarkers.MODULES, "Unable to load module "+clazz.getName()+"!", e);
+					}
 				}
-			} catch (InstantiationException | IllegalAccessException e) {
-				Discord4J.LOGGER.error(LogMarkers.MODULES, "Unable to load module " + clazz.getName() + "!", e);
-			}
-		}
-
-		if (Configuration.AUTOMATICALLY_ENABLE_MODULES) { // Handles module load order and loads the modules
-			List<IModule> toLoad = new CopyOnWriteArrayList<>(loadedModules);
-			while (toLoad.size() > 0) {
-				for (IModule module : toLoad) {
-					if (loadModule(module))
-						toLoad.remove(module);
+				
+				if (Configuration.AUTOMATICALLY_ENABLE_MODULES) { // Handles module load order and loads the modules
+					List<IModule> toLoad = new ArrayList<>(loadedModules);
+					while (toLoad.size() > 0) {
+						for (IModule module : toLoad) {
+							if (loadModule(module))
+								toLoad.remove(module);
+						}
+					}
 				}
 			}
 		}
@@ -101,7 +104,9 @@ public class ModuleLoader {
 	 * @return The list of loaded modules.
 	 */
 	public List<IModule> getLoadedModules() {
-		return loadedModules;
+		synchronized (loadedModules) {
+			return new ArrayList<>(loadedModules);
+		}
 	}
 
 	/**
@@ -111,7 +116,9 @@ public class ModuleLoader {
 	 * @see #getLoadedModules()
 	 */
 	public static List<Class<? extends IModule>> getModules() {
-		return modules;
+		synchronized (modules) {
+			return new ArrayList<>(modules);
+		}
 	}
 
 	/**
@@ -121,26 +128,28 @@ public class ModuleLoader {
 	 * @return true if the module was successfully loaded, false if otherwise. Note: successful load != successfully enabled
 	 */
 	public boolean loadModule(IModule module) {
-                if (!loadedModules.contains(module) && !canModuleLoad(module)) {
-			return false;
-                }
-		Class<? extends IModule> clazz = module.getClass();
-		if (clazz.isAnnotationPresent(Requires.class)) {
-			Requires annotation = clazz.getAnnotation(Requires.class);
-			if (!hasDependency(loadedModules, annotation.value())) {
+		synchronized (loadedModules) {
+			if (!loadedModules.contains(module) && !canModuleLoad(module)) {
 				return false;
 			}
+			Class<? extends IModule> clazz = module.getClass();
+			if (clazz.isAnnotationPresent(Requires.class)) {
+				Requires annotation = clazz.getAnnotation(Requires.class);
+				if (!hasDependency(loadedModules, annotation.value())) {
+					return false;
+				}
+			}
+			boolean enabled = module.enable(client);
+			if (enabled) {
+				client.getDispatcher().registerListener(module);
+				if (!loadedModules.contains(module))
+					loadedModules.add(module);
+				
+				client.getDispatcher().dispatch(new ModuleEnabledEvent(module));
+			}
+			
+			return true;
 		}
-		boolean enabled = module.enable(client);
-		if (enabled) {
-			client.getDispatcher().registerListener(module);
-			if (!loadedModules.contains(module))
-				loadedModules.add(module);
-
-			client.getDispatcher().dispatch(new ModuleEnabledEvent(module));
-		}
-
-		return true;
 	}
 
 	/**
@@ -149,23 +158,25 @@ public class ModuleLoader {
 	 * @param module The module to unload.
 	 */
 	public void unloadModule(IModule module) {
-		loadedModules.remove(module);
-		module.disable();
-		client.getDispatcher().unregisterListener(module);
-
-		loadedModules.removeIf(mod -> {
-			Class<? extends IModule> clazz = module.getClass();
-			if (clazz.isAnnotationPresent(Requires.class)) {
-				Requires annotation = clazz.getAnnotation(Requires.class);
-				if (annotation.value().equals(module.getClass().getName())) {
-					unloadModule(mod);
-					return true;
+		synchronized (loadedModules) {
+			loadedModules.remove(module);
+			module.disable();
+			client.getDispatcher().unregisterListener(module);
+			
+			loadedModules.removeIf(mod -> {
+				Class<? extends IModule> clazz = module.getClass();
+				if (clazz.isAnnotationPresent(Requires.class)) {
+					Requires annotation = clazz.getAnnotation(Requires.class);
+					if (annotation.value().equals(module.getClass().getName())) {
+						unloadModule(mod);
+						return true;
+					}
 				}
-			}
-			return false;
-		});
-
-		client.getDispatcher().dispatch(new ModuleDisabledEvent(module));
+				return false;
+			});
+			
+			client.getDispatcher().dispatch(new ModuleDisabledEvent(module));
+		}
 	}
 
 	private boolean hasDependency(List<IModule> modules, String className) {
@@ -367,10 +378,12 @@ public class ModuleLoader {
 	 * @param clazz The module class.
 	 */
 	public static void addModuleClass(Class<? extends IModule> clazz) {
-                if (!Modifier.isAbstract(clazz.getModifiers())
-                        && !Modifier.isInterface(clazz.getModifiers())
-                        && !modules.contains(clazz)) {
-                        modules.add(clazz);
-                }
+		synchronized (modules) {
+			if (!Modifier.isAbstract(clazz.getModifiers())
+					&& !Modifier.isInterface(clazz.getModifiers())
+					&& !modules.contains(clazz)) {
+				modules.add(clazz);
+			}
+		}
 	}
 }

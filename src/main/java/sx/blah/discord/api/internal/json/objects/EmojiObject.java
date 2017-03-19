@@ -19,10 +19,6 @@ public class EmojiObject {
 	 */
 	public String name;
 	/**
-	 * Array of role IDs that can use the emoji.
-	 */
-	private ID[] roles;
-	/**
 	 * Whether the emoji must be wrapped in colons.
 	 */
 	public boolean require_colons;
@@ -49,25 +45,5 @@ public class EmojiObject {
 	@SetterMethod("id")
 	public void setLongID(long id) {
 		this.id = new ID(id);
-	}
-	
-	@JsonGetter("roles")
-	public String[] getStringRoles() {
-		return ID.toStrings(roles);
-	}
-	
-	@JsonSetter("roles")
-	public void setStringRoles(String[] ids) {
-		this.roles = ID.of(ids);
-	}
-	
-	@GetterMethod("roles")
-	public long[] getLongRoles() {
-		return ID.toLongs(roles);
-	}
-	
-	@SetterMethod("roles")
-	public void setLongRoles(long[] ids) {
-		this.roles = ID.of(ids);
 	}
 }

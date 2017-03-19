@@ -140,9 +140,21 @@
 		<dependency>
 			<groupId>com.github.austinv11</groupId>
 			<artifactId>etf-java</artifactId>
-			<version>b3fa64c</version>
+			<version>7d8b21d</version>
 		</dependency>
 
+		<!-- For speedy caching TODO: Use koloboke-compile to customize maps so that we don't need to package this bloated api-->
+		<dependency>
+			<groupId>com.koloboke</groupId>
+			<artifactId>koloboke-api-jdk8</artifactId>
+			<version>1.0.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.koloboke</groupId>
+			<artifactId>koloboke-impl-jdk8</artifactId>
+			<version>1.0.0</version>
+			<scope>runtime</scope>
+		</dependency>
 	</dependencies>
 
 	<build>

@@ -5,6 +5,8 @@ import sx.blah.discord.api.events.Event;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.internal.DiscordUtils;
 
+import java.util.ArrayDeque;
+import java.util.Queue;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -32,7 +34,7 @@ public class RequestBuilder {
 	private volatile boolean isDone = false;
 	private volatile boolean isCancelled = false;
 	private volatile Action activeAction = new Action();
-	private final ConcurrentLinkedQueue<Action> actions = new ConcurrentLinkedQueue<>();
+	private final Queue<Action> actions = new ArrayDeque<>();
 	private final ExecutorService asyncExecutor = Executors.newSingleThreadExecutor(DiscordUtils.createDaemonThreadFactory("RequestBuilder Async Executor"));
 
 	public RequestBuilder(IDiscordClient client) {
@@ -234,10 +236,12 @@ public class RequestBuilder {
 	 * @return The builder instance.
 	 */
 	public RequestBuilder andThen(IRequestAction action) {
-		actions.add(activeAction);
-		activeAction = new Action();
-		activeAction.mode = failOnException ? ActionMode.NEXT : ActionMode.ALWAYS;
-		return doAction(action);
+		synchronized (actions) {
+			actions.add(activeAction);
+			activeAction = new Action();
+			activeAction.mode = failOnException ? ActionMode.NEXT : ActionMode.ALWAYS;
+			return doAction(action);
+		}
 	}
 
 	/**
@@ -249,10 +253,12 @@ public class RequestBuilder {
 	 * @return The builder instance.
 	 */
 	public RequestBuilder elseDo(IRequestAction action) {
-		actions.add(activeAction);
-		activeAction = new Action();
-		activeAction.mode = ActionMode.ELSE;
-		return doAction(action);
+		synchronized (actions) {
+			actions.add(activeAction);
+			activeAction = new Action();
+			activeAction.mode = ActionMode.ELSE;
+			return doAction(action);
+		}
 	}
 
 	/**
@@ -266,34 +272,40 @@ public class RequestBuilder {
 	 * Executes the built request.
 	 */
 	public void execute() {
-		actions.add(activeAction);
-		Runnable requestRunnable = () -> {
-			boolean previousResult = true;
-			loop: for (Action action : actions) {
-				if (isCancelled())
-					return;
-
-				switchStatement: switch (action.mode) {
-					case NEXT:
-						if (!previousResult)
-							break switchStatement;
-					case ALWAYS:
-						previousResult = action.execute();
-						break switchStatement;
-					case ELSE:
-						if (!previousResult) {
-							action.execute();
-							break loop;
+		synchronized (actions) {
+			actions.add(activeAction);
+			Runnable requestRunnable = () -> {
+				synchronized (actions) {
+					boolean previousResult = true;
+					loop:
+					for (Action action : actions) {
+						if (isCancelled())
+							return;
+						
+						switchStatement:
+						switch (action.mode) {
+							case NEXT:
+								if (!previousResult)
+									break switchStatement;
+							case ALWAYS:
+								previousResult = action.execute();
+								break switchStatement;
+							case ELSE:
+								if (!previousResult) {
+									action.execute();
+									break loop;
+								}
 						}
+					}
+					isDone = true;
+					asyncExecutor.shutdown();
 				}
+			};
+			if (isAsync) {
+				asyncExecutor.submit(requestRunnable);
+			} else {
+				requestRunnable.run();
 			}
-			isDone = true;
-			asyncExecutor.shutdown();
-		};
-		if (isAsync) {
-			asyncExecutor.submit(requestRunnable);
-		} else {
-			requestRunnable.run();
 		}
 	}
 

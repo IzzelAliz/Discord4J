@@ -1,5 +1,6 @@
 package sx.blah.discord.handle.obj;
 
+import com.koloboke.collect.map.hash.HashLongObjMap;
 import sx.blah.discord.api.internal.json.objects.EmbedObject;
 import sx.blah.discord.handle.impl.obj.PrivateChannel;
 import sx.blah.discord.util.*;
@@ -651,14 +652,14 @@ public interface IChannel extends IDiscordObject<IChannel> {
 	 *
 	 * @return The user permissions overrides for this channel.
 	 */
-	Map<Long, PermissionOverride> getUserOverrides();
+	HashLongObjMap<PermissionOverride> getUserOverrides();
 
 	/**
 	 * Gets the permissions overrides for roles. (Key = Role id).
 	 *
 	 * @return The role permissions overrides for this channel.
 	 */
-	Map<Long, PermissionOverride> getRoleOverrides();
+	HashLongObjMap<PermissionOverride> getRoleOverrides();
 
 	/**
 	 * Gets the permissions available for a user with all permission overrides taken into account.

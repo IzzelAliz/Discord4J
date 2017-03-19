@@ -15,6 +15,7 @@ import sx.blah.discord.handle.obj.IUser;
 import sx.blah.discord.util.DiscordException;
 import sx.blah.discord.util.RateLimitException;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Reaction implements IReaction {
@@ -29,7 +30,7 @@ public class Reaction implements IReaction {
 	/**
 	 * The users that reacted
 	 */
-	protected volatile List<IUser> users;
+	protected final List<IUser> users;
 	/**
 	 * Can't be final since it has to be set after creation
 	 */
@@ -50,7 +51,9 @@ public class Reaction implements IReaction {
 
 	@Override
 	public boolean getUserReacted(IUser user) {
-		return users.stream().anyMatch(u -> u.equals(user));
+		synchronized (users) {
+			return users.stream().anyMatch(u -> u.equals(user));
+		}
 	}
 
 	@Override
@@ -97,41 +100,45 @@ public class Reaction implements IReaction {
 	 * @return The CACHED users
 	 */
 	public List<IUser> getCachedUsers() {
-		return users;
+		synchronized (users) {
+			return users;
+		}
 	}
 
 	@Override
 	public synchronized List<IUser> getUsers() throws DiscordException, RateLimitException {
-		if (shouldRefreshUsers()) {
-			users.clear();
-
-			int gottenSoFar = 0;
-			String emoji = isCustomEmoji() ? (getCustomEmoji().getName() + ":" + getCustomEmoji().getStringID()) : this.emoji;
-			Long userAfter = null;
-			while (gottenSoFar < count) {
-				ReactionUserObject[] userObjs = ((DiscordClientImpl) getClient()).REQUESTS.GET.makeRequest(
-						String.format(DiscordEndpoints.REACTIONS_USER_LIST, message.getChannel().getStringID(), message.getStringID(), emoji),
-						ReactionUserObject[].class,
-						new BasicNameValuePair("after", userAfter == null ? null : Long.toUnsignedString(userAfter)));
-
-				if (userObjs.length == 0)
-					break;
-
-				gottenSoFar += userObjs.length;
-
-				for (ReactionUserObject obj : userObjs) {
-					IUser u = getClient().getUserByID(obj.getLongID());
-
-					if (u != null) {
-						users.add(u);
+		synchronized (users) {
+			if (shouldRefreshUsers()) {
+				users.clear();
+				
+				int gottenSoFar = 0;
+				String emoji = isCustomEmoji() ? (getCustomEmoji().getName()+":"+getCustomEmoji().getStringID()) : this.emoji;
+				Long userAfter = null;
+				while (gottenSoFar < count) {
+					ReactionUserObject[] userObjs = ((DiscordClientImpl) getClient()).REQUESTS.GET.makeRequest(
+							String.format(DiscordEndpoints.REACTIONS_USER_LIST, message.getChannel().getStringID(), message.getStringID(), emoji),
+							ReactionUserObject[].class,
+							new BasicNameValuePair("after", userAfter == null ? null : Long.toUnsignedString(userAfter)));
+					
+					if (userObjs.length == 0)
+						break;
+					
+					gottenSoFar += userObjs.length;
+					
+					for (ReactionUserObject obj : userObjs) {
+						IUser u = getClient().getUserByID(obj.getLongID());
+						
+						if (u != null) {
+							users.add(u);
+						}
+						
+						userAfter = obj.getLongID();
 					}
-
-					userAfter = obj.getLongID();
 				}
 			}
+			
+			return new ArrayList<>(users);
 		}
-
-		return users;
 	}
 
 	private boolean shouldRefreshUsers() {
@@ -149,7 +156,7 @@ public class Reaction implements IReaction {
 	}
 
 	@Override
-	public IReaction copy() {
+	public synchronized IReaction copy() {
 		return new Reaction(shard, count, users, emoji, isCustomEmoji);
 	}
 }

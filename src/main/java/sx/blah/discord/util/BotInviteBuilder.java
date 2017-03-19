@@ -14,9 +14,9 @@ import java.util.EnumSet;
 public class BotInviteBuilder {
 
 	private final IDiscordClient client;
-	private IGuild guild;
-	private EnumSet<Permissions> permissions;
-	private String clientIDOverride;
+	private volatile IGuild guild;
+	private volatile EnumSet<Permissions> permissions;
+	private volatile String clientIDOverride;
 
 	public BotInviteBuilder(IDiscordClient client) {
 		this.client = client;

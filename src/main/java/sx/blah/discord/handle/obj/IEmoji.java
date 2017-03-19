@@ -48,7 +48,9 @@ public interface IEmoji extends IDiscordObject<IEmoji> {
 	 * Gets the roles for this emoji. Possibly for integration, but unused at the moment.
 	 *
 	 * @return The roles list.
+	 * @deprecated This is NO-OP
 	 */
+	@Deprecated
 	List<IRole> getRoles();
 
 	/**

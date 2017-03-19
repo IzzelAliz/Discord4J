@@ -7,9 +7,9 @@ import sx.blah.discord.handle.obj.IEmoji;
 import sx.blah.discord.handle.obj.IGuild;
 import sx.blah.discord.handle.obj.IRole;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class EmojiImpl implements IEmoji {
 
@@ -21,10 +21,6 @@ public class EmojiImpl implements IEmoji {
 	 * The ID.
 	 */
 	protected final long id;
-	/**
-	 * Roles for integration?
-	 */
-	protected final List<IRole> roles;
 	/**
 	 * The name.
 	 */
@@ -38,17 +34,12 @@ public class EmojiImpl implements IEmoji {
 	 */
 	protected volatile boolean isManaged;
 
-	public EmojiImpl(IGuild guild, long id, String name, boolean requiresColons, boolean isManaged, IRole[] roles) {
+	public EmojiImpl(IGuild guild, long id, String name, boolean requiresColons, boolean isManaged) {
 		this.guild = guild;
 		this.id = id;
 		this.name = name;
 		this.requiresColons = requiresColons;
 		this.isManaged = isManaged;
-		this.roles = new CopyOnWriteArrayList<>();
-		
-		for (IRole role : roles) {
-			this.roles.add(role);
-		}
 	}
 
 	public void setRequiresColons(boolean requiresColons) {
@@ -71,8 +62,8 @@ public class EmojiImpl implements IEmoji {
 	}
 
 	@Override
-	public IEmoji copy() {
-		EmojiImpl copy = new EmojiImpl(guild, id, name, requiresColons, isManaged, roles.toArray(new IRole[roles.size()]));
+	public synchronized IEmoji copy() {
+		EmojiImpl copy = new EmojiImpl(guild, id, name, requiresColons, isManaged);
 
 		return copy;
 	}
@@ -107,7 +98,7 @@ public class EmojiImpl implements IEmoji {
 
 	@Override
 	public List<IRole> getRoles() {
-		return roles;
+		return new ArrayList<>();
 	}
 
 	@Override

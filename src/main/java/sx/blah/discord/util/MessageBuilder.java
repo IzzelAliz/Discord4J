@@ -11,11 +11,11 @@ import sx.blah.discord.handle.obj.IMessage;
  */
 public class MessageBuilder {
 
-	private String content = "";
-	private IChannel channel;
-	private IDiscordClient client;
-	private boolean tts = false;
-	private EmbedObject embed;
+	private volatile String content = "";
+	private volatile IChannel channel;
+	private final IDiscordClient client;
+	private volatile boolean tts = false;
+	private volatile EmbedObject embed;
 
 	public MessageBuilder(IDiscordClient client) {
 		this.client = client;

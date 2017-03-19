@@ -24,9 +24,9 @@ import java.util.stream.Collectors;
 import static sx.blah.discord.api.internal.DiscordUtils.ETF_MAPPER;
 
 class DispatchHandler {
-	private DiscordWS ws;
-	private ShardImpl shard;
-	private DiscordClientImpl client;
+	private final DiscordWS ws;
+	private final ShardImpl shard;
+	private final DiscordClientImpl client;
 
 	DispatchHandler(DiscordWS ws, ShardImpl shard) {
 		this.ws = ws;
@@ -107,7 +107,7 @@ class DispatchHandler {
 			if (this.shard.getInfo()[0] == 0) { // pms are only sent to shard one
 				Arrays.stream(ready.private_channels)
 						.map(pm -> DiscordUtils.getPrivateChannelFromJSON(shard, pm))
-						.forEach(shard.privateChannels::add);
+						.forEach(pm -> shard.privateChannels.put(pm.getLongID(), pm));
 			}
 
 			ws.isReady = true;
@@ -202,9 +202,14 @@ class DispatchHandler {
 			Discord4J.LOGGER.warn(LogMarkers.WEBSOCKET, "Guild with id {} is unavailable, ignoring it. Is there an outage?", json.getStringID());
 			return;
 		}
-
-		Guild guild = (Guild) DiscordUtils.getGuildFromJSON(shard, json);
-		shard.guildList.add(guild);
+		
+		Guild guild;
+		synchronized (shard) {
+			guild = (Guild) DiscordUtils.getGuildFromJSON(shard, json);
+		}
+		synchronized (shard.guildList) {
+			shard.guildList.put(guild.getLongID(), guild);
+		}
 
 		new RequestBuilder(client).setAsync(true).doAction(() -> {
 			try {
@@ -242,8 +247,12 @@ class DispatchHandler {
 		if (guild != null) {
 			User user = (User) guild.getUserByID(event.user.getLongID());
 			if (user != null) {
-				guild.getUsers().remove(user);
-				guild.getJoinTimes().remove(user);
+				synchronized (guild.users) {
+					guild.users.remove(user.getLongID());
+				}
+				synchronized (guild.joinTimes) {
+					guild.joinTimes.remove(user.getLongID());
+				}
 				guild.setTotalMemberCount(guild.getTotalMemberCount() - 1);
 				Discord4J.LOGGER.debug(LogMarkers.EVENTS, "User \"{}\" has been removed from or left guild \"{}\".", user.getName(), guild.getName());
 				client.dispatcher.dispatch(new UserLeaveEvent(guild, user));
@@ -372,10 +381,12 @@ class DispatchHandler {
 		// Clean up cache
 		guild.getShard().getGuilds().remove(guild);
 		client.getOurUser().getConnectedVoiceChannels().removeAll(guild.getVoiceChannels());
-		DiscordVoiceWS vWS = client.voiceConnections.get(guild);
-		if (vWS != null) {
-			vWS.disconnect(VoiceDisconnectedEvent.Reason.LEFT_CHANNEL);
-			client.voiceConnections.remove(guild);
+		synchronized (client.voiceConnections) {
+			DiscordVoiceWS vWS = client.voiceConnections.get(guild.getLongID());
+			if (vWS != null) {
+				vWS.disconnect(VoiceDisconnectedEvent.Reason.LEFT_CHANNEL);
+				client.voiceConnections.remove(guild.getLongID());
+			}
 		}
 
 		if (json.unavailable) { //Guild can't be reached
@@ -394,15 +405,18 @@ class DispatchHandler {
 			PrivateChannelObject event = ETF_MAPPER.read(map, PrivateChannelObject.class);
 			long id = event.getLongID();
 			boolean contained = false;
-			for (IPrivateChannel privateChannel : shard.privateChannels) {
-				if (privateChannel.getLongID() == id)
-					contained = true;
+			synchronized (shard.privateChannels) {
+				for (IPrivateChannel privateChannel : shard.privateChannels.values()) {
+					if (privateChannel.getLongID() == id)
+						contained = true;
+				}
 			}
 
 			if (contained)
 				return; // we already have this PM channel; no need to create another.
 
-			shard.privateChannels.add(DiscordUtils.getPrivateChannelFromJSON(shard, event));
+			PrivateChannel pm = DiscordUtils.getPrivateChannelFromJSON(shard, event);
+			shard.privateChannels.put(pm.getLongID(), pm);
 
 		} else { // Regular channel.
 			ChannelObject event = ETF_MAPPER.read(map, ChannelObject.class);
@@ -546,9 +560,11 @@ class DispatchHandler {
 		IGuild guild = client.getGuildByID(event.guild_id);
 		if (guild != null) {
 			IUser user = DiscordUtils.getUserFromJSON(shard, event.user);
-			if (client.getUserByID(user.getID()) != null) {
+			if (client.getUserByID(user.getLongID()) != null) {
 				guild.getUsers().remove(user);
-				((Guild) guild).getJoinTimes().remove(user);
+				synchronized (((Guild) guild).joinTimes) {
+					((Guild) guild).joinTimes.remove(user.getLongID());
+				}
 			}
 
 			client.dispatcher.dispatch(new UserBanEvent(guild, user));
@@ -571,8 +587,8 @@ class DispatchHandler {
 			IVoiceChannel channel = guild.getVoiceChannelByID(json.getLongChannelID());
 			User user = (User) guild.getUserByID(json.getLongUserID());
 			if (user != null) {
-				user.setIsDeaf(guild.getID(), json.deaf);
-				user.setIsMute(guild.getID(), json.mute);
+				user.setIsDeaf(guild.getLongID(), json.deaf);
+				user.setIsMute(guild.getLongID(), json.mute);
 				user.setIsDeafLocally(json.self_deaf);
 				user.setIsMutedLocally(json.self_mute);
 
@@ -608,7 +624,9 @@ class DispatchHandler {
 	private void voiceServerUpdate(VoiceUpdateResponse event) {
 		try {
 			event.endpoint = event.endpoint.substring(0, event.endpoint.indexOf(":"));
-			client.voiceConnections.put(client.getGuildByID(event.guild_id), new DiscordVoiceWS(event, shard));
+			synchronized (client.voiceConnections) {
+				client.voiceConnections.put(event.guild_id, new DiscordVoiceWS(event, shard));
+			}
 		} catch (Exception e) {
 			Discord4J.LOGGER.error(LogMarkers.VOICE_WEBSOCKET, "Discord4J Internal Exception", e);
 		}

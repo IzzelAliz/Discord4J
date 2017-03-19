@@ -1,5 +1,7 @@
 package sx.blah.discord.handle.impl.obj;
 
+import com.koloboke.collect.map.hash.HashLongObjMap;
+import com.koloboke.collect.map.hash.HashLongObjMaps;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
@@ -22,7 +24,6 @@ import java.io.*;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -48,7 +49,7 @@ public class Channel implements IChannel {
 	/**
 	 * Messages that have been sent into this channel
 	 */
-	public final ConcurrentLinkedDeque<IMessage> messages = new ConcurrentLinkedDeque<>();
+	public final Deque<IMessage> messages = new ConcurrentLinkedDeque<>();
 
 	/**
 	 * The guild this channel belongs to.
@@ -83,24 +84,24 @@ public class Channel implements IChannel {
 	/**
 	 * The permission overrides for users (key = user id).
 	 */
-	protected final Map<Long, PermissionOverride> userOverrides;
+	protected final HashLongObjMap<PermissionOverride> userOverrides;
 
 	/**
 	 * The permission overrides for roles (key = role id).
 	 */
-	protected final Map<Long, PermissionOverride> roleOverrides;
+	protected final HashLongObjMap<PermissionOverride> roleOverrides;
 
 	/**
 	 * The webhooks for this channel.
 	 */
-	protected final List<IWebhook> webhooks;
+	protected final HashLongObjMap<IWebhook> webhooks;
 
 	/**
 	 * The client that created this object.
 	 */
 	protected final DiscordClientImpl client;
 
-	public Channel(DiscordClientImpl client, String name, long id, IGuild parent, String topic, int position, Map<Long, PermissionOverride> roleOverrides, Map<Long, PermissionOverride> userOverrides) {
+	public Channel(DiscordClientImpl client, String name, long id, IGuild parent, String topic, int position, HashLongObjMap<PermissionOverride> roleOverrides, HashLongObjMap<PermissionOverride> userOverrides) {
 		this.client = client;
 		this.name = name;
 		this.id = id;
@@ -109,7 +110,7 @@ public class Channel implements IChannel {
 		this.position = position;
 		this.roleOverrides = roleOverrides;
 		this.userOverrides = userOverrides;
-		this.webhooks = new CopyOnWriteArrayList<>();
+		this.webhooks = HashLongObjMaps.newMutableMap();
 	}
 
 
@@ -595,7 +596,7 @@ public class Channel implements IChannel {
 
 	@Override
 	public boolean isPrivate() {
-		return this instanceof PrivateChannel;
+		return false;
 	}
 
 	@Override
@@ -815,56 +816,64 @@ public class Channel implements IChannel {
 	}
 
 	@Override
-	public Map<Long, PermissionOverride> getUserOverrides() {
-		return userOverrides;
+	public HashLongObjMap<PermissionOverride> getUserOverrides() {
+		synchronized (userOverrides) {
+			return HashLongObjMaps.newMutableMap(userOverrides);
+		}
 	}
 
 	@Override
-	public Map<Long, PermissionOverride> getRoleOverrides() {
-		return roleOverrides;
+	public HashLongObjMap<PermissionOverride> getRoleOverrides() {
+		synchronized (roleOverrides) {
+			return HashLongObjMaps.newMutableMap(roleOverrides);
+		}
 	}
 
 	@Override
 	public EnumSet<Permissions> getModifiedPermissions(IUser user) {
-		if (isPrivate() || getGuild().getOwnerID().equals(user.getID()))
+		if (isPrivate() || getGuild().getOwnerLongID() == user.getLongID())
 			return EnumSet.allOf(Permissions.class);
 
-		List<IRole> roles = user.getRolesForGuild(parent);
-		EnumSet<Permissions> permissions = user.getPermissionsForGuild(parent);
-
-		PermissionOverride override = getUserOverrides().get(user.getID());
-		List<PermissionOverride> overrideRoles = roles.stream()
-				.filter(r -> roleOverrides.containsKey(r.getID()))
-				.map(role -> roleOverrides.get(role.getID()))
-				.collect(Collectors.toList());
-		Collections.reverse(overrideRoles);
-		for (PermissionOverride roleOverride : overrideRoles) {
-			permissions.addAll(roleOverride.allow());
-			permissions.removeAll(roleOverride.deny());
+		synchronized (roleOverrides) {
+			List<IRole> roles = user.getRolesForGuild(parent);
+			EnumSet<Permissions> permissions = user.getPermissionsForGuild(parent);
+			
+			PermissionOverride override = getUserOverrides().get(user.getLongID());
+			List<PermissionOverride> overrideRoles = roles.stream()
+					.filter(r -> roleOverrides.containsKey(r.getLongID()))
+					.map(role -> roleOverrides.get(role.getLongID()))
+					.collect(Collectors.toList());
+			Collections.reverse(overrideRoles);
+			for (PermissionOverride roleOverride : overrideRoles) {
+				permissions.addAll(roleOverride.allow());
+				permissions.removeAll(roleOverride.deny());
+			}
+			
+			if (override != null) {
+				permissions.addAll(override.allow());
+				permissions.removeAll(override.deny());
+			}
+			
+			return permissions;
 		}
-
-		if (override != null) {
-			permissions.addAll(override.allow());
-			permissions.removeAll(override.deny());
-		}
-
-		return permissions;
 	}
 
 	@Override
 	public EnumSet<Permissions> getModifiedPermissions(IRole role) {
-		EnumSet<Permissions> base = role.getPermissions();
-		PermissionOverride override = getRoleOverrides().get(role.getID());
-
-		if (override == null) {
-			if ((override = getRoleOverrides().get(parent.getEveryoneRole().getID())) == null)
-				return base;
+		synchronized (roleOverrides) {
+			EnumSet<Permissions> base = role.getPermissions();
+			PermissionOverride override = roleOverrides.get(role.getLongID());
+			
+			if (override == null) {
+				if ((override = getRoleOverrides().get(parent.getEveryoneRole().getLongID())) == null)
+					return base;
+			}
+			
+			base.addAll(override.allow().stream().collect(Collectors.toList()));
+			override.deny().forEach(base::remove);
+			
+			return base;
 		}
-
-		base.addAll(override.allow().stream().collect(Collectors.toList()));
-		override.deny().forEach(base::remove);
-
-		return base;
 	}
 
 	/**
@@ -874,7 +883,9 @@ public class Channel implements IChannel {
 	 * @param override The permissions override.
 	 */
 	public void addUserOverride(long userId, PermissionOverride override) {
-		userOverrides.put(userId, override);
+		synchronized (userOverrides) {
+			userOverrides.put(userId, override);
+		}
 	}
 
 	/**
@@ -884,7 +895,9 @@ public class Channel implements IChannel {
 	 * @param override The permissions override.
 	 */
 	public void addRoleOverride(long roleId, PermissionOverride override) {
-		roleOverrides.put(roleId, override);
+		synchronized (roleOverrides) {
+			roleOverrides.put(roleId, override);
+		}
 	}
 
 	@Override
@@ -893,7 +906,9 @@ public class Channel implements IChannel {
 
 		((DiscordClientImpl) client).REQUESTS.DELETE.makeRequest(DiscordEndpoints.CHANNELS+getStringID()+"/permissions/"+user.getStringID());
 
-		userOverrides.remove(user.getLongID());
+		synchronized (userOverrides) {
+			userOverrides.remove(user.getLongID());
+		}
 	}
 
 	@Override
@@ -902,7 +917,9 @@ public class Channel implements IChannel {
 
 		((DiscordClientImpl) client).REQUESTS.DELETE.makeRequest(DiscordEndpoints.CHANNELS+getStringID()+"/permissions/"+role.getStringID());
 
-		roleOverrides.remove(role.getLongID());
+		synchronized (roleOverrides) {
+			roleOverrides.remove(role.getLongID());
+		}
 	}
 
 	@Override
@@ -986,28 +1003,32 @@ public class Channel implements IChannel {
 
 	@Override
 	public List<IWebhook> getWebhooks() {
-		return webhooks;
+		synchronized (webhooks) {
+			return new ArrayList<>(webhooks.values());
+		}
 	}
 
 	@Override
 	public IWebhook getWebhookByID(String id) {
-		return webhooks.stream()
-				.filter(w -> w.getID().equalsIgnoreCase(id))
-				.findAny().orElse(null);
+		synchronized (webhooks) {
+			return webhooks.get(Long.parseUnsignedLong(id));
+		}
 	}
 	
 	@Override
 	public IWebhook getWebhookByID(long id) {
-		return webhooks.stream()
-				.filter(w -> w.getLongID() == id)
-				.findAny().orElse(null);
+		synchronized (webhooks) {
+			return webhooks.get(id);
+		}
 	}
 
 	@Override
 	public List<IWebhook> getWebhooksByName(String name) {
-		return webhooks.stream()
-				.filter(w -> w.getDefaultName().equals(name))
-				.collect(Collectors.toList());
+		synchronized (webhooks) {
+			return webhooks.values().stream()
+					.filter(w -> w.getDefaultName().equals(name))
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
@@ -1045,8 +1066,9 @@ public class Channel implements IChannel {
 	 * @param webhook The webhook.
 	 */
 	public void addWebhook(IWebhook webhook) {
-		if (!this.webhooks.contains(webhook))
-			this.webhooks.add(webhook);
+		synchronized (webhooks) {
+			webhooks.put(webhook.getLongID(), webhook);
+		}
 	}
 
 	/**
@@ -1055,7 +1077,9 @@ public class Channel implements IChannel {
 	 * @param webhook The webhook.
 	 */
 	public void removeWebhook(IWebhook webhook) {
-		this.webhooks.remove(webhook);
+		synchronized (webhooks) {
+			this.webhooks.remove(webhook.getLongID());
+		}
 	}
 
 	public void loadWebhooks() {
@@ -1067,10 +1091,13 @@ public class Channel implements IChannel {
 
 		RequestBuffer.request(() -> {
 			try {
-				List<IWebhook> oldList = getWebhooks()
-						.stream()
-						.map(IWebhook::copy)
-						.collect(Collectors.toCollection(CopyOnWriteArrayList::new));
+				List<IWebhook> oldList;
+				synchronized (webhooks) {
+					oldList = webhooks.values()
+							.stream()
+							.map(IWebhook::copy)
+							.collect(Collectors.toCollection(ArrayList::new));
+				}
 
 				WebhookObject[] response = ((DiscordClientImpl) client).REQUESTS.GET.makeRequest(
 						DiscordEndpoints.CHANNELS + getStringID() + "/webhooks",
@@ -1110,7 +1137,7 @@ public class Channel implements IChannel {
 	}
 
 	@Override
-	public IChannel copy() {
+	public synchronized IChannel copy() {
 		Channel channel = new Channel(client, name, id, parent, topic, position, roleOverrides, userOverrides);
 		channel.isTyping.set(isTyping.get());
 		channel.roleOverrides.putAll(roleOverrides);
@@ -1144,6 +1171,6 @@ public class Channel implements IChannel {
 		if (other == null)
 			return false;
 
-		return this.getClass().isAssignableFrom(other.getClass()) && ((IChannel) other).getID().equals(getID());
+		return this.getClass().isAssignableFrom(other.getClass()) && ((IChannel) other).getLongID() == getLongID();
 	}
 }

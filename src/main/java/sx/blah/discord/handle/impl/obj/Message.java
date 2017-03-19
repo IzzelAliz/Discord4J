@@ -1,5 +1,8 @@
 package sx.blah.discord.handle.impl.obj;
 
+import com.koloboke.collect.set.hash.HashLongSet;
+import com.koloboke.collect.set.hash.HashObjSet;
+import com.koloboke.collect.set.hash.HashObjSets;
 import com.vdurmont.emoji.Emoji;
 import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.IDiscordClient;
@@ -19,11 +22,7 @@ import sx.blah.discord.util.RateLimitException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -64,22 +63,22 @@ public class Message implements IMessage {
 	/**
 	 * The list of users mentioned by this message.
 	 */
-	protected volatile List<Long> mentions;
+	protected volatile HashLongSet mentions;
 
 	/**
 	 * The list of roles mentioned by this message.
 	 */
-	protected volatile List<Long> roleMentions;
+	protected volatile HashLongSet roleMentions;
 
 	/**
 	 * The attachments, if any, on the message.
 	 */
-	protected volatile List<Attachment> attachments;
+	protected volatile HashObjSet<Attachment> attachments;
 
 	/**
 	 * The Embeds, if any, on the message.
 	 */
-	protected volatile List<Embed> embedded;
+	protected volatile HashObjSet<Embed> embedded;
 
 	/**
 	 * Whether the message mentions everyone.
@@ -104,7 +103,7 @@ public class Message implements IMessage {
 	/**
 	 * The list of channels mentioned by this message.
 	 */
-	protected final List<IChannel> channelMentions;
+	protected final HashObjSet<IChannel> channelMentions;
 
 	/**
 	 * The client that created this object.
@@ -120,7 +119,7 @@ public class Message implements IMessage {
 	/**
 	 * The list of reactions
 	 */
-	protected volatile List<IReaction> reactions;
+	protected volatile HashObjSet<IReaction> reactions;
 
 	/**
 	 * The ID of the webhook that sent this message
@@ -139,8 +138,8 @@ public class Message implements IMessage {
 
 	public Message(IDiscordClient client, long id, String content, IUser user, IChannel channel,
 				   LocalDateTime timestamp, LocalDateTime editedTimestamp, boolean mentionsEveryone,
-				   List<Long> mentions, List<Long> roleMentions, List<Attachment> attachments,
-				   boolean pinned, List<Embed> embedded, List<IReaction> reactions, long webhookID) {
+				   HashLongSet mentions, HashLongSet roleMentions, HashObjSet<Attachment> attachments,
+				   boolean pinned, HashObjSet<Embed> embedded, HashObjSet<IReaction> reactions, long webhookID) {
 		this.client = client;
 		this.id = id;
 		setContent(content);
@@ -152,7 +151,7 @@ public class Message implements IMessage {
 		this.roleMentions = roleMentions;
 		this.attachments = attachments;
 		this.isPinned = pinned;
-		this.channelMentions = new ArrayList<>();
+		this.channelMentions = HashObjSets.newMutableSet();
 		this.embedded = embedded;
 		this.everyoneMentionIsValid = mentionsEveryone;
 		this.reactions = reactions;
@@ -187,7 +186,7 @@ public class Message implements IMessage {
 	 * @param mentions     The new user mentions.
 	 * @param roleMentions The new role mentions.
 	 */
-	public void setMentions(List<Long> mentions, List<Long> roleMentions) {
+	public void setMentions(HashLongSet mentions, HashLongSet roleMentions) {
 		this.mentions = mentions;
 		this.roleMentions = roleMentions;
 	}
@@ -216,7 +215,7 @@ public class Message implements IMessage {
 	 *
 	 * @param attachments The new attachements.
 	 */
-	public void setAttachments(List<Attachment> attachments) {
+	public void setAttachments(HashObjSet<Attachment> attachments) {
 		this.attachments = attachments;
 	}
 
@@ -225,7 +224,7 @@ public class Message implements IMessage {
 	 *
 	 * @param attachments The new attachements.
 	 */
-	public void setEmbedded(List<Embed> attachments) {
+	public void setEmbedded(HashObjSet<Embed> attachments) {
 		this.embedded = attachments;
 	}
 
@@ -276,12 +275,12 @@ public class Message implements IMessage {
 
 	@Override
 	public List<IChannel> getChannelMentions() {
-		return channelMentions;
+		return new ArrayList<>(channelMentions);
 	}
 
 	@Override
 	public List<Attachment> getAttachments() {
-		return attachments;
+		return new ArrayList<>(attachments);
 	}
 
 	@Override
@@ -387,7 +386,7 @@ public class Message implements IMessage {
 	}
 
 	@Override
-	public IMessage copy() {
+	public synchronized IMessage copy() {
 		return new Message(client, id, content, author, channel, timestamp, editedTimestamp, everyoneMentionIsValid,
 				mentions, roleMentions, attachments, isPinned, embedded, reactions, webhookID);
 	}
@@ -421,13 +420,13 @@ public class Message implements IMessage {
 		return formattedContent;
 	}
 
-	public void setReactions(List<IReaction> reactions) {
+	public void setReactions(HashObjSet<IReaction> reactions) {
 		this.reactions = reactions;
 	}
 
 	@Override
 	public List<IReaction> getReactions() {
-		return reactions;
+		return new ArrayList<>(reactions);
 	}
 
 	@Override
@@ -572,6 +571,6 @@ public class Message implements IMessage {
 
 	@Override
 	public boolean equals(Object other) {
-		return other != null && this.getClass().isAssignableFrom(other.getClass()) && ((IMessage) other).getID().equals(getID());
+		return other != null && this.getClass().isAssignableFrom(other.getClass()) && ((IMessage) other).getLongID() == getLongID();
 	}
 }

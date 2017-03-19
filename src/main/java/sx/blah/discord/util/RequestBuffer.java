@@ -1,8 +1,10 @@
 package sx.blah.discord.util;
 
+import com.koloboke.collect.map.hash.HashObjObjMaps;
 import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.internal.DiscordUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -15,8 +17,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class RequestBuffer {
 
 	private static final ExecutorService initialExecutor = Executors.newCachedThreadPool(DiscordUtils.createDaemonThreadFactory("RequestBuffer Initial Executor"));
-	private static final Map<String, ScheduledExecutorService> requestServices = new ConcurrentHashMap<>();
-	private static final Map<String, List<RequestFuture>> requests = new ConcurrentHashMap<>();
+	private static final Map<String, ScheduledExecutorService> requestServices = HashObjObjMaps.newMutableMap();
+	private static final Map<String, List<RequestFuture>> requests = HashObjObjMaps.newMutableMap();
 
 	/**
 	 * Here it is, the magical method that does it all.
@@ -36,14 +38,16 @@ public class RequestBuffer {
 
 					if (future.getBucket() != null) {
 						synchronized (requests) {
-
-							if (!requests.containsKey(future.getBucket())) {
-								requests.put(future.getBucket(), new CopyOnWriteArrayList<>());
-								requestServices.put(future.getBucket(), Executors.newSingleThreadScheduledExecutor(DiscordUtils.createDaemonThreadFactory("RequestBuffer Retry Handler")));
-								requestServices.get(future.getBucket()).schedule(new RequestRunnable(future.getBucket()), future.getDelay(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+							synchronized (requestServices) {
+								
+								if (!requests.containsKey(future.getBucket())) {
+									requests.put(future.getBucket(), new ArrayList<>());
+									requestServices.put(future.getBucket(), Executors.newSingleThreadScheduledExecutor(DiscordUtils.createDaemonThreadFactory("RequestBuffer Retry Handler")));
+									requestServices.get(future.getBucket()).schedule(new RequestRunnable(future.getBucket()), future.getDelay(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+								}
+								
+								requests.get(future.getBucket()).add(future);
 							}
-
-							requests.get(future.getBucket()).add(future);
 						}
 					}
 				}
@@ -305,7 +309,7 @@ public class RequestBuffer {
 					List<RequestFuture> futures = requests.get(bucket);
 
 					if (futures != null) {
-						List<RequestFuture> futuresToRetry = new CopyOnWriteArrayList<>();
+						List<RequestFuture> futuresToRetry = new ArrayList<>();
 
 						futures.forEach((RequestFuture future) -> {
 							try {
@@ -321,15 +325,15 @@ public class RequestBuffer {
 							}
 						});
 
-						if (futuresToRetry.size() > 0) {
-							long delay = Math.max(0, futuresToRetry.get(0).getDelay(TimeUnit.MILLISECONDS));
-							requests.replace(bucket, futuresToRetry);
-							synchronized (requestServices) {
+						synchronized (requestServices) {
+							if (futuresToRetry.size() > 0) {
+								long delay = Math.max(0, futuresToRetry.get(0).getDelay(TimeUnit.MILLISECONDS));
+								requests.replace(bucket, futuresToRetry);
 								requestServices.get(bucket).schedule(new RequestRunnable(bucket), delay, TimeUnit.MILLISECONDS);
+							} else {
+								requests.remove(bucket);
+								requestServices.remove(bucket).shutdownNow();
 							}
-						} else {
-							requests.remove(bucket);
-							requestServices.remove(bucket).shutdownNow();
 						}
 					}
 				} catch (Exception e) {

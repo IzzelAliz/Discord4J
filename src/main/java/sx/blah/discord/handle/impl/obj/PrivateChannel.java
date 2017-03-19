@@ -1,5 +1,7 @@
 package sx.blah.discord.handle.impl.obj;
 
+import com.koloboke.collect.map.hash.HashLongObjMap;
+import com.koloboke.collect.map.hash.HashLongObjMaps;
 import sx.blah.discord.api.internal.DiscordClientImpl;
 import sx.blah.discord.handle.obj.*;
 import sx.blah.discord.util.DiscordException;
@@ -17,18 +19,18 @@ public class PrivateChannel extends Channel implements IPrivateChannel {
 	protected final IUser recipient;
 
 	public PrivateChannel(DiscordClientImpl client, IUser recipient, long id) {
-		super(client, recipient.getName(), id, null, null, 0, new HashMap<>(), new HashMap<>());
+		super(client, recipient.getName(), id, null, null, 0, HashLongObjMaps.newMutableMap(), HashLongObjMaps.newMutableMap());
 		this.recipient = recipient;
 	}
 
 	@Override
-	public Map<Long, PermissionOverride> getUserOverrides() {
-		return new HashMap<>();
+	public HashLongObjMap<PermissionOverride> getUserOverrides() {
+		return HashLongObjMaps.newMutableMap();
 	}
 
 	@Override
-	public Map<Long, PermissionOverride> getRoleOverrides() {
-		return new HashMap<>();
+	public HashLongObjMap<PermissionOverride> getRoleOverrides() {
+		return HashLongObjMaps.newMutableMap();
 	}
 
 	@Override
@@ -205,12 +207,17 @@ public class PrivateChannel extends Channel implements IPrivateChannel {
 	}
 
 	@Override
-	public IPrivateChannel copy() {
+	public synchronized IPrivateChannel copy() {
 		return new PrivateChannel(client, recipient, id);
 	}
 
 	@Override
 	public boolean isDeleted() {
 		return false;
+	}
+	
+	@Override
+	public boolean isPrivate() {
+		return true;
 	}
 }

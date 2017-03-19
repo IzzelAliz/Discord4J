@@ -1,5 +1,9 @@
 package sx.blah.discord.handle.impl.obj;
 
+import com.koloboke.collect.map.hash.HashLongObjMap;
+import com.koloboke.collect.map.hash.HashLongObjMaps;
+import com.koloboke.collect.set.hash.HashObjSet;
+import com.koloboke.collect.set.hash.HashObjSets;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.IShard;
 import sx.blah.discord.api.internal.DiscordClientImpl;
@@ -11,15 +15,7 @@ import sx.blah.discord.util.DiscordException;
 import sx.blah.discord.util.MissingPermissionsException;
 import sx.blah.discord.util.RateLimitException;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.*;
 
 public class User implements IUser {
 
@@ -30,15 +26,15 @@ public class User implements IUser {
 	/**
 	 * The roles the user is a part of. (Key = guild id).
 	 */
-	protected final Map<Long, List<IRole>> roles;
+	protected final HashLongObjMap<List<IRole>> roles = HashLongObjMaps.newMutableMap();
 	/**
 	 * The nicknames this user has. (Key = guild id).
 	 */
-	protected final Map<Long, String> nicks;
+	protected final HashLongObjMap<String> nicks = HashLongObjMaps.newMutableMap();
 	/**
 	 * The voice channels this user is in.
 	 */
-	protected final List<IVoiceChannel> channels = new CopyOnWriteArrayList<>();
+	public final HashObjSet<IVoiceChannel> channels = HashObjSets.newMutableSet();
 	/**
 	 * The client that created this object.
 	 */
@@ -50,11 +46,11 @@ public class User implements IUser {
 	/**
 	 * The muted status of this user. (Key = guild id).
 	 */
-	private final Map<String, Boolean> isMuted = new ConcurrentHashMap<>();
+	private final HashLongObjMap<Boolean> isMuted = HashLongObjMaps.newMutableMap();
 	/**
 	 * The deafened status of this user. (Key = guild id).
 	 */
-	private final Map<String, Boolean> isDeaf = new ConcurrentHashMap<>();
+	private final HashLongObjMap<Boolean> isDeaf = HashLongObjMaps.newMutableMap();
 	/**
 	 * Display name of the user.
 	 */
@@ -71,7 +67,7 @@ public class User implements IUser {
 	/**
 	 * Whether this user is a bot or not.
 	 */
-	protected volatile boolean isBot;
+	protected final boolean isBot;
 	/**
 	 * This user's presence.
 	 */
@@ -99,8 +95,6 @@ public class User implements IUser {
 		this.avatarURL = String.format(DiscordEndpoints.AVATARS, getStringID(), this.avatar,
 				(this.avatar != null && this.avatar.startsWith("a_")) ? "gif" : "webp");
 		this.presence = presence;
-		this.roles = new ConcurrentHashMap<>();
-		this.nicks = new ConcurrentHashMap<>();
 		this.isBot = isBot;
 	}
 	
@@ -198,11 +192,11 @@ public class User implements IUser {
 
 	@Override
 	public List<IRole> getRolesForGuild(IGuild guild) {
-		return roles.getOrDefault(guild.getID(), new ArrayList<>());
+		return roles.getOrDefault(guild.getLongID(), new ArrayList<>());
 	}
 
 	@Override
-	public EnumSet<Permissions> getPermissionsForGuild(IGuild guild){
+	public EnumSet<Permissions> getPermissionsForGuild(IGuild guild) {
 		EnumSet<Permissions> permissions = EnumSet.noneOf(Permissions.class);
 		getRolesForGuild(guild).forEach(role -> permissions.addAll(role.getPermissions()));
 		return permissions;
@@ -210,7 +204,9 @@ public class User implements IUser {
 
 	@Override
 	public Optional<String> getNicknameForGuild(IGuild guild) {
-		return Optional.ofNullable(nicks.containsKey(guild.getLongID()) ? nicks.get(guild.getLongID()) : null);
+		synchronized (nicks) {
+			return Optional.ofNullable(nicks.containsKey(guild.getLongID()) ? nicks.get(guild.getLongID()) : null);
+		}
 	}
 
 	/**
@@ -220,11 +216,13 @@ public class User implements IUser {
 	 * @param nick    The nickname, or null to remove it.
 	 */
 	public void addNick(long guildID, String nick) {
-		if (nick == null) {
-			if (nicks.containsKey(guildID))
-				nicks.remove(guildID);
-		} else {
-			nicks.put(guildID, nick);
+		synchronized (nicks) {
+			if (nick == null) {
+				if (nicks.containsKey(guildID))
+					nicks.remove(guildID);
+			} else {
+				nicks.put(guildID, nick);
+			}
 		}
 	}
 
@@ -235,20 +233,22 @@ public class User implements IUser {
 	 * @param role    The role.
 	 */
 	public void addRole(long guildID, IRole role) {
-		if (!roles.containsKey(guildID)) {
-			roles.put(guildID, new ArrayList<>());
+		synchronized (roles) {
+			if (!roles.containsKey(guildID)) {
+				roles.put(guildID, new ArrayList<>());
+			}
+			
+			roles.get(guildID).add(role);
 		}
-
-		roles.get(guildID).add(role);
 	}
 
 	@Override
-	public IUser copy() {
+	public synchronized IUser copy() {
 		User newUser = new User(shard, name, id, discriminator, avatar, presence, isBot);
 		newUser.setPresence(presence.copy());
-		for (String key : isMuted.keySet())
+		for (long key : isMuted.keySet())
 			newUser.setIsMute(key, isMuted.get(key));
-		for (String key : isDeaf.keySet())
+		for (long key : isDeaf.keySet())
 			newUser.setIsDeaf(key, isDeaf.get(key));
 		newUser.nicks.putAll(nicks);
 		newUser.roles.putAll(roles);
@@ -259,13 +259,6 @@ public class User implements IUser {
 	@Override
 	public boolean isBot() {
 		return isBot;
-	}
-
-	/**
-	 * Sets the CACHED isBot status to true.
-	 */
-	public void convertToBot() {
-		isBot = true;
 	}
 
 	@Override
@@ -293,7 +286,9 @@ public class User implements IUser {
 
 	@Override
 	public List<IVoiceChannel> getConnectedVoiceChannels() {
-		return channels;
+		synchronized (channels) {
+			return new ArrayList<>(channels);
+		}
 	}
 
 	@Override
@@ -307,8 +302,10 @@ public class User implements IUser {
 	 * @param guildID The guild in which this is the case.
 	 * @param isMuted Whether the user is muted or not.
 	 */
-	public void setIsMute(String guildID, boolean isMuted) {
-		this.isMuted.put(guildID, isMuted);
+	public void setIsMute(long guildID, Boolean isMuted) {
+		synchronized (this.isMuted) {
+			this.isMuted.put(guildID, isMuted);
+		}
 	}
 
 	/**
@@ -317,18 +314,24 @@ public class User implements IUser {
 	 * @param guildID The guild in which this is the case.
 	 * @param isDeaf  Whether the user is deafened or not.
 	 */
-	public void setIsDeaf(String guildID, boolean isDeaf) {
-		this.isDeaf.put(guildID, isDeaf);
+	public void setIsDeaf(long guildID, Boolean isDeaf) {
+		synchronized (this.isDeaf) {
+			this.isDeaf.put(guildID, isDeaf);
+		}
 	}
 
 	@Override
 	public boolean isDeaf(IGuild guild) {
-		return isDeaf.getOrDefault(guild.getID(), false);
+		synchronized (this.isDeaf) {
+			return isDeaf.getOrDefault(guild.getLongID(), Boolean.FALSE);
+		}
 	}
 
 	@Override
 	public boolean isMuted(IGuild guild) {
-		return isMuted.getOrDefault(guild.getID(), false);
+		synchronized (this.isMuted) {
+			return isMuted.getOrDefault(guild.getLongID(), Boolean.FALSE);
+		}
 	}
 
 	/**
@@ -384,7 +387,7 @@ public class User implements IUser {
 		if (other == null)
 			return false;
 
-		return this.getClass().isAssignableFrom(other.getClass()) && ((IUser) other).getID().equals(getID());
+		return this.getClass().isAssignableFrom(other.getClass()) && ((IUser) other).getLongID() == getLongID();
 	}
 
 	@Override

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import sx.blah.discord.util.ID;
 
+import java.util.Arrays;
+
 /**
  * Represents a json member object.
  */
@@ -53,12 +55,12 @@ public class MemberObject {
 	}
 	
 	@GetterMethod("roles")
-	public long[] getLongRoles() {
-		return ID.toLongs(roles);
+	public long[] getRoles() {
+		return Arrays.stream(roles).mapToLong(ID::getLongID).toArray();
 	}
 	
 	@SetterMethod("roles")
-	public void setLongRoles(long[] ids) {
-		this.roles = ID.of(ids);
+	public void setRoles(RoleObject[] ids) {
+		this.roles = Arrays.stream(ids).mapToLong(RoleObject::getLongID).mapToObj(ID::new).toArray(ID[]::new);
 	}
 }

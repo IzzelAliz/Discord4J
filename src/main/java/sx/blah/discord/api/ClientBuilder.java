@@ -1,5 +1,7 @@
 package sx.blah.discord.api;
 
+import com.koloboke.collect.set.hash.HashObjSet;
+import com.koloboke.collect.set.hash.HashObjSets;
 import org.apache.http.message.BasicNameValuePair;
 import sx.blah.discord.api.events.EventDispatcher;
 import sx.blah.discord.api.events.IListener;
@@ -9,9 +11,7 @@ import sx.blah.discord.api.internal.Requests;
 import sx.blah.discord.api.internal.json.responses.GatewayBotResponse;
 import sx.blah.discord.util.DiscordException;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Use this as a factory to create {@link IDiscordClient} instances
@@ -22,7 +22,7 @@ public class ClientBuilder {
 	 * This represents the default amount of messages which may be cached by channels.
 	 * @see sx.blah.discord.util.MessageHistory
 	 */
-	public static final int DEFAULT_MESSAGE_CACHE_LIMIT = 256;
+	public static final int DEFAULT_MESSAGE_CACHE_LIMIT = 0;
 
 	private boolean withRecomendedShardCount = false;
 	private int maxMissedPings = -1;
@@ -34,9 +34,9 @@ public class ClientBuilder {
 	private int maxCacheCount = DEFAULT_MESSAGE_CACHE_LIMIT;
 
 	//Early registered listeners:
-	private final List<IListener> iListeners = new ArrayList<>();
-	private final List<Object> listeners = new ArrayList<>();
-	private final List<Class<?>> listenerClasses = new ArrayList<>();
+	private final HashObjSet<IListener> iListeners = HashObjSets.newMutableSet();
+	private final HashObjSet<Object> listeners = HashObjSets.newMutableSet();
+	private final HashObjSet<Class<?>> listenerClasses = HashObjSets.newMutableSet();
 
 	/**
 	 * Provides the login info for the client.

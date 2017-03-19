@@ -1,5 +1,9 @@
 package sx.blah.discord.util.audio;
 
+import com.koloboke.collect.map.hash.HashLongObjMap;
+import com.koloboke.collect.map.hash.HashLongObjMaps;
+import com.koloboke.collect.map.hash.HashObjObjMap;
+import com.koloboke.collect.map.hash.HashObjObjMaps;
 import org.tritonus.dsp.ais.AmplitudeAudioInputStream;
 import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.IDiscordClient;
@@ -40,7 +44,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class AudioPlayer implements IAudioProvider {
 
-	private final static Map<IGuild, AudioPlayer> playerInstances = new ConcurrentHashMap<>();
+	private final static HashLongObjMap<AudioPlayer> playerInstances = HashLongObjMaps.newMutableMap();
 
 	private final IAudioManager manager;
 	private final IDiscordClient client;
@@ -53,7 +57,7 @@ public class AudioPlayer implements IAudioProvider {
 	//Controls
 	private final PauseableProcessor pauseController = new PauseableProcessor();
 
-	private final List<Track> trackQueue = new CopyOnWriteArrayList<>();
+	private final List<Track> trackQueue = new ArrayList<>();
 
 	private volatile boolean loop = false;
 	private volatile boolean wasReadyLast = false;
@@ -69,10 +73,12 @@ public class AudioPlayer implements IAudioProvider {
 	 * @return The player.
 	 */
 	public static AudioPlayer getAudioPlayerForGuild(IGuild guild) {
-		if (playerInstances.containsKey(guild)) {
-			return playerInstances.get(guild);
-		} else {
-			return new AudioPlayer(guild);
+		synchronized (playerInstances) {
+			if (playerInstances.containsKey(guild.getLongID())) {
+				return playerInstances.get(guild.getLongID());
+			} else {
+				return new AudioPlayer(guild);
+			}
 		}
 	}
 
@@ -114,7 +120,9 @@ public class AudioPlayer implements IAudioProvider {
 		manager.setAudioProvider(this);
 		manager.setAudioProcessor(playerProcessor);
 
-		playerInstances.put(manager.getGuild(), this);
+		synchronized (playerInstances) {
+			playerInstances.put(manager.getGuild().getLongID(), this);
+		}
 
 		client.getDispatcher().dispatch(new AudioPlayerInitEvent(this));
 	}
@@ -134,7 +142,7 @@ public class AudioPlayer implements IAudioProvider {
 		manager.setAudioProvider(backupProvider);
 		manager.setAudioProcessor(backupProcessor);
 
-		playerInstances.remove(manager.getGuild(), this);
+		playerInstances.remove(manager.getGuild().getLongID(), this);
 
 		clear();
 
@@ -146,8 +154,10 @@ public class AudioPlayer implements IAudioProvider {
 	 * {@link Track} object (if it exists). Which prevents these objects from being reused reliably.
 	 */
 	public void clear() {
-		trackQueue.forEach(Track::close);
-		trackQueue.clear();
+		synchronized (trackQueue) {
+			trackQueue.forEach(Track::close);
+			trackQueue.clear();
+		}
 	}
 
 	/**
@@ -267,7 +277,9 @@ public class AudioPlayer implements IAudioProvider {
 	 * @param track The track to queue.
 	 */
 	public void queue(Track track) {
-		trackQueue.add(track);
+		synchronized (trackQueue) {
+			trackQueue.add(track);
+		}
 
 		client.getDispatcher().dispatch(new TrackQueueEvent(this, track));
 	}
@@ -320,11 +332,13 @@ public class AudioPlayer implements IAudioProvider {
 	 * This shuffles the playlist in the queue.
 	 */
 	public synchronized void shuffle() {
-		if (trackQueue.size() > 0) {
-			getCurrentTrack().rewindTo(0);
-			Collections.shuffle(trackQueue);
-
-			client.getDispatcher().dispatch(new ShuffleEvent(this));
+		synchronized (trackQueue) {
+			if (trackQueue.size() > 0) {
+				getCurrentTrack().rewindTo(0);
+				Collections.shuffle(trackQueue);
+				
+				client.getDispatcher().dispatch(new ShuffleEvent(this));
+			}
 		}
 	}
 
@@ -334,22 +348,24 @@ public class AudioPlayer implements IAudioProvider {
 	 * @return The track skipped. (null if the playlist is empty)
 	 */
 	public Track skip() {
-		if (trackQueue.size() > 0) {
-			Track track = trackQueue.remove(0);
-
-			if (track.isReady() && track.getCurrentTrackTime() == track.getTotalTrackTime()) { //The track was actually skipped, not skipped due to the way my logic works
-				client.getDispatcher().dispatch(new TrackSkipEvent(this, track, trackQueue.size() > 0 ? trackQueue.get(0) : null));
+		synchronized (trackQueue) {
+			if (trackQueue.size() > 0) {
+				Track track = trackQueue.remove(0);
+				
+				if (track.isReady() && track.getCurrentTrackTime() == track.getTotalTrackTime()) { //The track was actually skipped, not skipped due to the way my logic works
+					client.getDispatcher().dispatch(new TrackSkipEvent(this, track, trackQueue.size() > 0 ? trackQueue.get(0) : null));
+				}
+				
+				if (isLooping()) {
+					track.rewindTo(0); //Have to reset the audio
+					trackQueue.add(track);
+				} else {
+					track.close();
+				}
+				return track;
 			}
-
-			if (isLooping()) {
-				track.rewindTo(0); //Have to reset the audio
-				trackQueue.add(track);
-			} else {
-				track.close();
-			}
-			return track;
+			return null;
 		}
-		return null;
 	}
 
 	/**
@@ -372,16 +388,20 @@ public class AudioPlayer implements IAudioProvider {
 	 * @return The playlist size.
 	 */
 	public int getPlaylistSize() {
-		return trackQueue.size();
+		synchronized (trackQueue) {
+			return trackQueue.size();
+		}
 	}
 
 	/**
 	 * Gets the list representing the playlist.
 	 *
-	 * @return The playlist. NOTE: This is mutable and is the same instance used in the player.
+	 * @return The playlist.
 	 */
 	public List<Track> getPlaylist() {
-		return trackQueue;
+		synchronized (trackQueue) {
+			return new ArrayList<>(trackQueue);
+		}
 	}
 
 	/**
@@ -390,7 +410,9 @@ public class AudioPlayer implements IAudioProvider {
 	 * @return The current track.
 	 */
 	public Track getCurrentTrack() {
-		return getPlaylistSize() > 0 ? trackQueue.get(0) : null;
+		synchronized (trackQueue) {
+			return getPlaylistSize() > 0 ? trackQueue.get(0) : null;
+		}
 	}
 
 	/**
@@ -442,7 +464,9 @@ public class AudioPlayer implements IAudioProvider {
 	}
 
 	private boolean calculateReady() {
-		return trackQueue.size() > 0 && getCurrentTrack().isReady();
+		synchronized (trackQueue) {
+			return trackQueue.size() > 0 && getCurrentTrack().isReady();
+		}
 	}
 
 	@Override
@@ -473,8 +497,8 @@ public class AudioPlayer implements IAudioProvider {
 		private volatile long currentTrackTime = 0;
 		private final IAudioProvider provider;
 		private final AmplitudeAudioInputStream stream;
-		private final List<byte[]> audioCache = new CopyOnWriteArrayList<>(); //key = ms timestamp / 20 ms
-		private final Map<String, Object> metadata = new ConcurrentHashMap<>();
+		private final List<byte[]> audioCache = new ArrayList<>(); //key = ms timestamp / 20 ms
+		private final Map<String, Object> metadata = HashObjObjMaps.newMutableMap();
 
 		public Track(IAudioProvider provider) {
 			this.provider = provider;
@@ -514,7 +538,9 @@ public class AudioPlayer implements IAudioProvider {
 		 * @return The metadata.
 		 */
 		public Map<String, Object> getMetadata() {
-			return metadata;
+			synchronized (metadata) {
+				return metadata;
+			}
 		}
 
 		/**

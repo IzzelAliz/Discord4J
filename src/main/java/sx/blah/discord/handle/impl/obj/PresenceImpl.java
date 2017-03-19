@@ -36,7 +36,7 @@ public class PresenceImpl implements IPresence {
 	}
 
 	@Override
-	public IPresence copy() {
+	public synchronized IPresence copy() {
 		return new PresenceImpl(playingText, streamingUrl, status);
 	}
 

@@ -7,7 +7,7 @@ import java.util.Arrays;
  */
 public class ID {
 	
-	private long id;
+	private volatile long id;
 	
 	public ID(String id) {
 		if (id == null)

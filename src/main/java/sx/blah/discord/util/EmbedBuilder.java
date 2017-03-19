@@ -11,8 +11,8 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Builds an EmbedObject for use in sending messages.
@@ -46,7 +46,7 @@ public class EmbedBuilder {
 
 	private final EmbedObject embed = new EmbedObject(null, "rich", null, null, null, 0, null, null, null, null, null,
 			null, null);
-	private volatile List<EmbedObject.EmbedFieldObject> fields = new CopyOnWriteArrayList<>();
+	private volatile List<EmbedObject.EmbedFieldObject> fields = new ArrayList<>();
 	private volatile Color color = new Color(0);
 
 	/**
@@ -354,31 +354,34 @@ public class EmbedBuilder {
 				return this;
 			throw new IllegalArgumentException("Title or content cannot be null/empty.");
 		}
-
-		if (fields.size() >= FIELD_COUNT_LIMIT) {
-			if (lenient)
-				fields = fields.subList(0, FIELD_COUNT_LIMIT);
-			else
-				throw new IllegalArgumentException("Embed cannot have more than " + FIELD_COUNT_LIMIT + " fields");
+		
+		synchronized (fields) {
+			
+			if (fields.size() >= FIELD_COUNT_LIMIT) {
+				if (lenient)
+					fields = fields.subList(0, FIELD_COUNT_LIMIT);
+				else
+					throw new IllegalArgumentException("Embed cannot have more than "+FIELD_COUNT_LIMIT+" fields");
+			}
+			
+			if (title.length() > TITLE_LENGTH_LIMIT) {
+				if (lenient)
+					title = title.substring(0, TITLE_LENGTH_LIMIT);
+				else
+					throw new IllegalArgumentException(
+							"Embed field title cannot have more than "+TITLE_LENGTH_LIMIT+" characters");
+			}
+			
+			if (content.length() > FIELD_CONTENT_LIMIT) {
+				if (lenient)
+					content = content.substring(0, FIELD_CONTENT_LIMIT);
+				else
+					throw new IllegalArgumentException(
+							"Embed field content cannot have more than "+FIELD_CONTENT_LIMIT+" characters");
+			}
+			
+			fields.add(new EmbedObject.EmbedFieldObject(title, content, inline));
 		}
-
-		if (title.length() > TITLE_LENGTH_LIMIT) {
-			if (lenient)
-				title = title.substring(0, TITLE_LENGTH_LIMIT);
-			else
-				throw new IllegalArgumentException(
-						"Embed field title cannot have more than " + TITLE_LENGTH_LIMIT + " characters");
-		}
-
-		if (content.length() > FIELD_CONTENT_LIMIT) {
-			if (lenient)
-				content = content.substring(0, FIELD_CONTENT_LIMIT);
-			else
-				throw new IllegalArgumentException(
-						"Embed field content cannot have more than " + FIELD_CONTENT_LIMIT + " characters");
-		}
-
-		fields.add(new EmbedObject.EmbedFieldObject(title, content, inline));
 		return this;
 	}
 
@@ -389,7 +392,9 @@ public class EmbedBuilder {
 	 * @see #FIELD_COUNT_LIMIT
 	 */
 	public int getFieldCount() {
-		return fields.size();
+		synchronized (fields) {
+			return fields.size();
+		}
 	}
 
 	/**
@@ -399,12 +404,14 @@ public class EmbedBuilder {
 	 */
 	public EmbedObject build() {
 		generateWarnings();
-
-		return new EmbedObject(embed.title, "rich", embed.description, embed.url, embed.timestamp, color == null
-				? embed.color
-				: ((color.getRed() & 0xFF) << 16) | ((color.getGreen() & 0xFF) << 8) | (color.getBlue() & 0xFF),
-				embed.footer, embed.image, embed.thumbnail, embed.video, embed.provider, embed.author,
-				fields.toArray(new EmbedObject.EmbedFieldObject[fields.size()]));
+		
+		synchronized (fields) {
+			return new EmbedObject(embed.title, "rich", embed.description, embed.url, embed.timestamp, color == null
+					? embed.color
+					: ((color.getRed() & 0xFF) << 16) | ((color.getGreen() & 0xFF) << 8) | (color.getBlue() & 0xFF),
+					embed.footer, embed.image, embed.thumbnail, embed.video, embed.provider, embed.author,
+					fields.toArray(new EmbedObject.EmbedFieldObject[fields.size()]));
+		}
 	}
 
 	private void generateWarnings() {

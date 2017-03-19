@@ -133,7 +133,9 @@ public class DiscordVoiceWS extends WebSocketAdapter {
 	public void disconnect(VoiceDisconnectedEvent.Reason reason) {
 		try {
 			client.dispatcher.dispatch(new VoiceDisconnectedEvent(guild, reason));
-			client.voiceConnections.remove(guild);
+			synchronized (client.voiceConnections) {
+				client.voiceConnections.remove(guild.getLongID());
+			}
 			keepAlive.shutdownNow();
 			sendHandler.shutdownNow();
 			udpSocket.close();

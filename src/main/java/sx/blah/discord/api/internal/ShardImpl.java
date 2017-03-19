@@ -1,5 +1,7 @@
 package sx.blah.discord.api.internal;
 
+import com.koloboke.collect.map.hash.HashLongObjMap;
+import com.koloboke.collect.map.hash.HashLongObjMaps;
 import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.IShard;
@@ -16,9 +18,9 @@ import sx.blah.discord.util.LogMarkers;
 import sx.blah.discord.util.RateLimitException;
 import sx.blah.discord.util.RequestBuffer;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 public class ShardImpl implements IShard {
@@ -29,8 +31,8 @@ public class ShardImpl implements IShard {
 	private final int shardNumber, totalShards;
 
 	private final DiscordClientImpl client;
-	final List<IGuild> guildList = new CopyOnWriteArrayList<>();
-	final List<IPrivateChannel> privateChannels = new CopyOnWriteArrayList<>();
+	final HashLongObjMap<IGuild> guildList = HashLongObjMaps.newMutableMap();
+	final HashLongObjMap<IPrivateChannel> privateChannels = HashLongObjMaps.newMutableMap();
 
 	ShardImpl(IDiscordClient client, String gateway, int shardNumber, int totalShards) {
 		this.client = (DiscordClientImpl) client;
@@ -171,12 +173,19 @@ public class ShardImpl implements IShard {
 
 	@Override
 	public List<IChannel> getChannels(boolean priv) {
-		List<IChannel> channels = guildList.stream()
-				.map(IGuild::getChannels)
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
-		if (priv)
-			channels.addAll(privateChannels);
+		List<IChannel> channels;
+		synchronized (guildList) {
+			 channels = guildList.values()
+					.stream()
+					.map(IGuild::getChannels)
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
+		if (priv) {
+			synchronized (privateChannels) {
+				channels.addAll(privateChannels.values());
+			}
+		}
 		return channels;
 	}
 
@@ -188,7 +197,7 @@ public class ShardImpl implements IShard {
 	@Override
 	public IChannel getChannelByID(String id) {
 		return getChannels(true).stream()
-				.filter(c -> c.getID().equalsIgnoreCase(id))
+				.filter(c -> c.getStringID().equals(id))
 				.findAny().orElse(null);
 	}
 	
@@ -201,21 +210,30 @@ public class ShardImpl implements IShard {
 
 	@Override
 	public List<IVoiceChannel> getVoiceChannels() {
-		return guildList.stream()
-				.map(IGuild::getVoiceChannels)
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
+		synchronized (guildList) {
+			return guildList.values()
+					.stream()
+					.map(IGuild::getVoiceChannels)
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
 	public List<IVoiceChannel> getConnectedVoiceChannels() {
-		return getClient().getOurUser().getConnectedVoiceChannels().stream().filter(vc -> vc.getShard().equals(this)).collect(Collectors.toList());
+		return getClient()
+				.getOurUser()
+				.getConnectedVoiceChannels()
+				.stream()
+				.filter(vc -> vc.getShard()
+						.equals(this))
+				.collect(Collectors.toList());
 	}
 
 	@Override
 	public IVoiceChannel getVoiceChannelByID(String id) {
 		return getVoiceChannels().stream()
-				.filter(c -> c.getID().equalsIgnoreCase(id))
+				.filter(c -> c.getStringID().equalsIgnoreCase(id))
 				.findAny().orElse(null);
 	}
 	
@@ -228,64 +246,82 @@ public class ShardImpl implements IShard {
 
 	@Override
 	public List<IGuild> getGuilds() {
-		return guildList;
+		synchronized (guildList) {
+			return new ArrayList<>(guildList.values());
+		}
 	}
 
 	@Override
 	public IGuild getGuildByID(String guildID) {
-		return guildList.stream()
-				.filter(g -> g.getID().equalsIgnoreCase(guildID))
-				.findAny().orElse(null);
+		synchronized (guildList) {
+			return guildList.get(Long.parseUnsignedLong(guildID));
+		}
 	}
 	
 	@Override
 	public IGuild getGuildByID(long guildID) {
-		return guildList.stream()
-				.filter(g -> g.getLongID() == guildID)
-				.findAny().orElse(null);
+		synchronized (guildList) {
+			return guildList.get(guildID);
+		}
 	}
 	
 	@Override
 	public List<IUser> getUsers() {
-		return guildList.stream()
-				.map(IGuild::getUsers)
-				.flatMap(List::stream)
-				.distinct()
-				.collect(Collectors.toList());
+		synchronized (guildList) {
+			return guildList.values()
+					.stream()
+					.map(IGuild::getUsers)
+					.flatMap(List::stream)
+					.distinct()
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
 	public IUser getUserByID(String userID) {
-		IGuild guild = guildList.stream()
-				.filter(g -> g.getUserByID(userID) != null)
-				.findFirst()
-				.orElse(null);
-
-		IUser user = guild != null ? guild.getUserByID(userID) : null;
-		IUser ourUser = getClient().getOurUser();
-
-		return ourUser != null && ourUser.getID().equals(userID) ? ourUser : user; // List of users doesn't include the bot user. Check if the id is that of the bot.
+		IUser ourUser = getClient().getOurUser(); // List of users doesn't include the bot user. Check if the id is that of the bot.
+		if (ourUser != null && ourUser.getID().equals(userID))
+			return ourUser;
+		
+		IGuild guild;
+		synchronized (guildList) {
+			guild = guildList.values()
+					.stream()
+					.filter(g -> g.getUserByID(userID) != null)
+					.findFirst()
+					.orElse(null);
+		}
+		
+		return guild != null ? guild.getUserByID(userID) : null;
 	}
 	
 	@Override
 	public IUser getUserByID(long userID) {
-		IGuild guild = guildList.stream()
-				.filter(g -> g.getUserByID(userID) != null)
-				.findFirst()
-				.orElse(null);
+		IUser ourUser = getClient().getOurUser(); // List of users doesn't include the bot user. Check if the id is that of the bot.
+		if (ourUser != null && ourUser.getLongID() == userID)
+			return ourUser;
 		
-		IUser user = guild != null ? guild.getUserByID(userID) : null;
-		IUser ourUser = getClient().getOurUser();
+		IGuild guild;
+		synchronized (guildList) {
+			guild = guildList.values()
+					.stream()
+					.filter(g -> g.getUserByID(userID) != null)
+					.findFirst()
+					.orElse(null);
+		}
 		
-		return ourUser != null && ourUser.getLongID() == userID ? ourUser : user; // List of users doesn't include the bot user. Check if the id is that of the bot.
+		return guild != null ? guild.getUserByID(userID) : null;
 	}
 	
 	@Override
 	public List<IRole> getRoles() {
-		return guildList.stream()
-				.map(IGuild::getRoles)
-				.flatMap(List::stream)
-				.collect(Collectors.toList());
+		synchronized (guildList) {
+			return guildList.values()
+					.stream()
+					.map(IGuild::getRoles)
+					.flatMap(List::stream)
+					.collect(Collectors.toList());
+		}
 	}
 
 	@Override
@@ -317,16 +353,20 @@ public class ShardImpl implements IShard {
 
 	@Override
 	public IMessage getMessageByID(String messageID) {
-		for (IGuild guild : guildList) {
-			IMessage message = guild.getMessageByID(messageID);
-			if (message != null)
-				return message;
+		synchronized (guildList) {
+			for (IGuild guild : guildList.values()) {
+				IMessage message = guild.getMessageByID(messageID);
+				if (message != null)
+					return message;
+			}
 		}
 
-		for (IPrivateChannel privateChannel : privateChannels) {
-			IMessage message = privateChannel.getMessageByID(messageID);
-			if (message != null)
-				return message;
+		synchronized (privateChannels) {
+			for (IPrivateChannel privateChannel : privateChannels.values()) {
+				IMessage message = privateChannel.getMessageByID(messageID);
+				if (message != null)
+					return message;
+			}
 		}
 
 		return null;
@@ -334,16 +374,20 @@ public class ShardImpl implements IShard {
 	
 	@Override
 	public IMessage getMessageByID(long messageID) {
-		for (IGuild guild : guildList) {
-			IMessage message = guild.getMessageByID(messageID);
-			if (message != null)
-				return message;
+		synchronized (guildList) {
+			for (IGuild guild : guildList.values()) {
+				IMessage message = guild.getMessageByID(messageID);
+				if (message != null)
+					return message;
+			}
 		}
 		
-		for (IPrivateChannel privateChannel : privateChannels) {
-			IMessage message = privateChannel.getMessageByID(messageID);
-			if (message != null)
-				return message;
+		synchronized (privateChannels) {
+			for (IPrivateChannel privateChannel : privateChannels.values()) {
+				IMessage message = privateChannel.getMessageByID(messageID);
+				if (message != null)
+					return message;
+			}
 		}
 		
 		return null;
@@ -356,18 +400,23 @@ public class ShardImpl implements IShard {
 		if (user.equals(getClient().getOurUser()))
 			throw new DiscordException("Cannot PM yourself!");
 
-		Optional<IPrivateChannel> opt = privateChannels.stream()
-				.filter(c -> c.getRecipient().getID().equalsIgnoreCase(user.getID()))
-				.findAny();
-		if (opt.isPresent())
-			return opt.get();
+		synchronized (privateChannels) {
+			Optional<IPrivateChannel> opt = privateChannels.values()
+					.stream()
+					.filter(c -> c.getRecipient().getLongID() == user.getLongID())
+					.findAny();
+			if (opt.isPresent())
+				return opt.get();
+		}
 
 		PrivateChannelObject pmChannel = client.REQUESTS.POST.makeRequest(
 				DiscordEndpoints.USERS+getClient().getOurUser().getStringID()+"/channels",
 				new PrivateChannelCreateRequest(user.getLongID()),
 				PrivateChannelObject.class);
 		IPrivateChannel channel = DiscordUtils.getPrivateChannelFromJSON(this, pmChannel);
-		privateChannels.add(channel);
+		synchronized (privateChannels) {
+			privateChannels.put(channel.getLongID(), channel);
+		}
 		return channel;
 	}
 }

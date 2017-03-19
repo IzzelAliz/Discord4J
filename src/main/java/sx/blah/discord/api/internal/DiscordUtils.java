@@ -9,13 +9,19 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.module.afterburner.AfterburnerModule;
+import com.koloboke.collect.map.hash.HashLongObjMap;
+import com.koloboke.collect.map.hash.HashLongObjMaps;
+import com.koloboke.collect.set.hash.HashLongSet;
+import com.koloboke.collect.set.hash.HashLongSets;
+import com.koloboke.collect.set.hash.HashObjSet;
+import com.koloboke.collect.set.hash.HashObjSets;
 import org.apache.commons.lang3.tuple.Pair;
 import sx.blah.discord.Discord4J;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.IShard;
+import sx.blah.discord.api.internal.etf.GuildMembersRequest;
 import sx.blah.discord.api.internal.etf.event.PresenceUpdateEventResponse;
 import sx.blah.discord.api.internal.json.objects.*;
-import sx.blah.discord.api.internal.etf.GuildMembersRequest;
 import sx.blah.discord.handle.audio.impl.AudioManager;
 import sx.blah.discord.handle.impl.obj.*;
 import sx.blah.discord.handle.obj.*;
@@ -32,7 +38,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -131,8 +136,6 @@ public class DiscordUtils {
 			user.setAvatar(response.avatar);
 			user.setName(response.username);
 			user.setDiscriminator(response.discriminator);
-			if (response.bot && !user.isBot())
-				user.convertToBot();
 		} else {
 			user = new User(shard, response.username, response.getLongID(), response.discriminator, response.avatar,
 					new PresenceImpl(Optional.empty(), Optional.empty(), StatusType.OFFLINE), response.bot);
@@ -157,8 +160,8 @@ public class DiscordUtils {
 	 * @param json The json response to use.
 	 * @return The list of mentioned users.
 	 */
-	public static List<Long> getMentionsFromJSON(MessageObject json) {
-		List<Long> mentions = new ArrayList<>();
+	public static HashLongSet getMentionsFromJSON(MessageObject json) {
+		HashLongSet mentions = HashLongSets.newMutableSet();
 		if (json.mentions != null)
 			for (UserObject response : json.mentions)
 				mentions.add(response.getLongID());
@@ -172,8 +175,8 @@ public class DiscordUtils {
 	 * @param json The json response to use.
 	 * @return The list of mentioned roles.
 	 */
-	public static List<Long> getRoleMentionsFromJSON(MessageObject json) {
-		List<Long> mentions = new ArrayList<>();
+	public static HashLongSet getRoleMentionsFromJSON(MessageObject json) {
+		HashLongSet mentions = HashLongSets.newMutableSet();
 		if (json.getLongRoles() != null)
 			for (long role : json.getLongRoles())
 				mentions.add(role);
@@ -187,8 +190,8 @@ public class DiscordUtils {
 	 * @param json The json response to use.
 	 * @return The attached messages.
 	 */
-	public static List<IMessage.Attachment> getAttachmentsFromJSON(MessageObject json) {
-		List<IMessage.Attachment> attachments = new ArrayList<>();
+	public static  HashObjSet<IMessage.Attachment> getAttachmentsFromJSON(MessageObject json) {
+		HashObjSet<IMessage.Attachment> attachments = HashObjSets.newMutableSet();
 		if (json.attachments != null)
 			for (MessageObject.AttachmentObject response : json.attachments) {
 				attachments.add(new IMessage.Attachment(response.filename, response.size, response.getLongID(), response.url));
@@ -203,8 +206,8 @@ public class DiscordUtils {
 	 * @param json The json response to use.
 	 * @return The embedded messages.
 	 */
-	public static List<Embed> getEmbedsFromJSON(MessageObject json) {
-		List<Embed> embeds = new ArrayList<>();
+	public static HashObjSet<Embed> getEmbedsFromJSON(MessageObject json) {
+		HashObjSet<Embed> embeds = HashObjSets.newMutableSet();
 		if (json.embeds != null)
 			for (EmbedObject response : json.embeds) {
 				embeds.add(new Embed(response.title, response.type, response.description, response.url,
@@ -291,7 +294,10 @@ public class DiscordUtils {
 
 			if (json.voice_states != null) {
 				for (VoiceStateObject voiceState : json.voice_states) {
-					guild.getUserByID(voiceState.getLongUserID()).getConnectedVoiceChannels().add(guild.getVoiceChannelByID(voiceState.getLongChannelID()));
+					User user = (User) guild.getUserByID(voiceState.getLongUserID());
+					synchronized (user.channels) {
+						user.channels.add(guild.getVoiceChannelByID(voiceState.getLongChannelID()));
+					}
 				}
 			}
 		}
@@ -312,7 +318,7 @@ public class DiscordUtils {
 	 * @return The emoji object.
 	 */
 	public static IEmoji getEmojiFromJSON(IGuild guild, EmojiObject json) {
-		EmojiImpl emoji = new EmojiImpl(guild, json.getLongID(), json.name, json.require_colons, json.managed, (IRole[]) Arrays.stream(json.getLongRoles()).mapToObj(guild::getEmojiByID).toArray());
+		EmojiImpl emoji = new EmojiImpl(guild, json.getLongID(), json.name, json.require_colons, json.managed);
 
 		return emoji;
 	}
@@ -327,8 +333,8 @@ public class DiscordUtils {
 		return reaction;
 	}
 
-	public static List<IReaction> getReactionsFromJson(IShard shard, MessageObject.ReactionObject[] objects) {
-		List<IReaction> reactions = new CopyOnWriteArrayList<>();
+	public static HashObjSet<IReaction> getReactionsFromJson(IShard shard, MessageObject.ReactionObject[] objects) {
+		HashObjSet<IReaction> reactions = HashObjSets.newMutableSet();
 
 		if (objects != null) {
 			for (MessageObject.ReactionObject obj : objects) {
@@ -350,7 +356,7 @@ public class DiscordUtils {
 	 */
 	public static IUser getUserFromGuildMemberResponse(IGuild guild, MemberObject json) {
 		User user = getUserFromJSON(guild.getShard(), json.user);
-		for (long role : json.getLongRoles()) {
+		for (long role : json.getRoles()) {
 			Role roleObj = (Role) guild.getRoleByID(role);
 			if (roleObj != null && !user.getRolesForGuild(guild).contains(roleObj))
 				user.addRole(guild.getLongID(), roleObj);
@@ -359,10 +365,12 @@ public class DiscordUtils {
 
 		user.addNick(guild.getLongID(), json.nick);
 
-		user.setIsDeaf(guild.getID(), json.deaf);
-		user.setIsMute(guild.getID(), json.mute);
+		user.setIsDeaf(guild.getLongID(), json.deaf);
+		user.setIsMute(guild.getLongID(), json.mute);
 
-		((Guild) guild).getJoinTimes().put(user, convertFromTimestamp(json.joined_at));
+		synchronized (((Guild) guild).joinTimes) {
+			((Guild) guild).joinTimes.put(user.getLongID(), convertFromTimestamp(json.joined_at));
+		}
 		return user;
 	}
 
@@ -373,17 +381,19 @@ public class DiscordUtils {
 	 * @param json  The json response.
 	 * @return The private channel object.
 	 */
-	public static IPrivateChannel getPrivateChannelFromJSON(IShard shard, PrivateChannelObject json) {
+	public static PrivateChannel getPrivateChannelFromJSON(IShard shard, PrivateChannelObject json) {
 		long id = json.getLongID();
 		User recipient = (User) shard.getUserByID(id);
 		if (recipient == null)
 			recipient = getUserFromJSON(shard, json.recipient);
-
+		
 		PrivateChannel channel = null;
-		for (IPrivateChannel privateChannel : ((ShardImpl) shard).privateChannels) {
-			if (privateChannel.getRecipient().equals(recipient)) {
-				channel = (PrivateChannel) privateChannel;
-				break;
+		synchronized (((ShardImpl) shard).privateChannels) {
+			for (IPrivateChannel privateChannel : ((ShardImpl) shard).privateChannels.values()) {
+				if (privateChannel.getRecipient().equals(recipient)) {
+					channel = (PrivateChannel) privateChannel;
+					break;
+				}
 			}
 		}
 		if (channel == null) {
@@ -443,8 +453,8 @@ public class DiscordUtils {
 			return null;
 
 		Message message = (Message) toUpdate;
-		List<IMessage.Attachment> attachments = getAttachmentsFromJSON(json);
-		List<Embed> embeds = getEmbedsFromJSON(json);
+		HashObjSet<IMessage.Attachment> attachments = getAttachmentsFromJSON(json);
+		HashObjSet<Embed> embeds = getEmbedsFromJSON(json);
 		if (!attachments.isEmpty())
 			message.setAttachments(attachments);
 		if (!embeds.isEmpty())
@@ -494,11 +504,10 @@ public class DiscordUtils {
 	public static IChannel getChannelFromJSON(IGuild guild, ChannelObject json) {
 		Channel channel;
 
-		Pair<Map<Long, IChannel.PermissionOverride>, Map<Long, IChannel.PermissionOverride>> overrides =
-				getPermissionOverwritesFromJSONs(
-				json.permission_overwrites);
-		Map<Long, IChannel.PermissionOverride> userOverrides = overrides.getLeft();
-		Map<Long, IChannel.PermissionOverride> roleOverrides = overrides.getRight();
+		Pair<HashLongObjMap<IChannel.PermissionOverride>, HashLongObjMap<IChannel.PermissionOverride>> overrides =
+				getPermissionOverwritesFromJSONs(json.permission_overwrites);
+		HashLongObjMap<IChannel.PermissionOverride> userOverrides = overrides.getLeft();
+		HashLongObjMap<IChannel.PermissionOverride> roleOverrides = overrides.getRight();
 
 		if ((channel = (Channel) guild.getChannelByID(json.getLongID())) != null) {
 			channel.setName(json.name);
@@ -522,11 +531,10 @@ public class DiscordUtils {
 	 * @param overwrites The overwrites.
 	 * @return A pair representing the overwrites per id; left value = user overrides and right value = role overrides.
 	 */
-	public static Pair<Map<Long, IChannel.PermissionOverride>, Map<Long, IChannel.PermissionOverride>>
-	getPermissionOverwritesFromJSONs(
-			OverwriteObject[] overwrites) {
-		Map<Long, IChannel.PermissionOverride> userOverrides = new ConcurrentHashMap<>();
-		Map<Long, IChannel.PermissionOverride> roleOverrides = new ConcurrentHashMap<>();
+	public static Pair<HashLongObjMap<IChannel.PermissionOverride>, HashLongObjMap<IChannel.PermissionOverride>>
+	getPermissionOverwritesFromJSONs(OverwriteObject[] overwrites) {
+		HashLongObjMap<IChannel.PermissionOverride> userOverrides = HashLongObjMaps.newMutableMap();
+		HashLongObjMap<IChannel.PermissionOverride> roleOverrides = HashLongObjMaps.newMutableMap();
 
 		for (OverwriteObject overrides : overwrites) {
 			if (overrides.type.equalsIgnoreCase("role")) {
@@ -588,11 +596,11 @@ public class DiscordUtils {
 	 */
 	public static IVoiceChannel getVoiceChannelFromJSON(IGuild guild, ChannelObject json) {
 		VoiceChannel channel;
-
-		Pair<Map<Long, IChannel.PermissionOverride>, Map<Long, IChannel.PermissionOverride>> overrides =
+		
+		Pair<HashLongObjMap<IChannel.PermissionOverride>, HashLongObjMap<IChannel.PermissionOverride>> overrides =
 				getPermissionOverwritesFromJSONs(json.permission_overwrites);
-		Map<Long, IChannel.PermissionOverride> userOverrides = overrides.getLeft();
-		Map<Long, IChannel.PermissionOverride> roleOverrides = overrides.getRight();
+		HashLongObjMap<IChannel.PermissionOverride> userOverrides = overrides.getLeft();
+		HashLongObjMap<IChannel.PermissionOverride> roleOverrides = overrides.getRight();
 
 		if ((channel = (VoiceChannel) guild.getVoiceChannelByID(json.getLongID())) != null) {
 			channel.setUserLimit(json.user_limit);

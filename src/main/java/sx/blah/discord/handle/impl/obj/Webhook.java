@@ -53,7 +53,7 @@ public class Webhook implements IWebhook {
 	}
 
 	@Override
-	public IWebhook copy() {
+	public synchronized IWebhook copy() {
 		return new Webhook(client, name, id, channel, author, avatar, token);
 	}
 

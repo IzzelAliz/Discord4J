@@ -5,11 +5,10 @@ import sx.blah.discord.handle.obj.IMessage;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -23,8 +22,8 @@ import static sx.blah.discord.handle.obj.IMessage.MAX_MESSAGE_LENGTH;
  */
 public class MessageOutputStream extends OutputStream {
 	private final IChannel channel;
-	private final List<IMessage> messages = new CopyOnWriteArrayList<>();
-	private final AtomicReference<Queue<Character>> buf = new AtomicReference<>(new ConcurrentLinkedQueue<>());
+	private final List<IMessage> messages = new ArrayList<>();
+	private final AtomicReference<Queue<Character>> buf = new AtomicReference<>(new ArrayDeque<>());
 	private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
 	/**
@@ -64,7 +63,9 @@ public class MessageOutputStream extends OutputStream {
 	 * @return The most recent message or null if none exist.
 	 */
 	public IMessage getCurrentMessage() {
-		return messages.stream().findFirst().orElse(null);
+		synchronized (messages) {
+			return messages.stream().findFirst().orElse(null);
+		}
 	}
 
 	/**
@@ -82,16 +83,18 @@ public class MessageOutputStream extends OutputStream {
 			throw new IOException("This stream is closed.");
 
 		final AtomicReference<IOException> exceptionReference = new AtomicReference<>();
-
+		
 		if (buf.get().size() > 0)
 			RequestBuffer.request(() -> {
 				try {
-					IMessage currentMessage = getCurrentMessage();
-					if (currentMessage != null) {
-						String toAdd = getStringFromCharBuffer(MAX_MESSAGE_LENGTH - currentMessage.getContent().length());
-						messages.set(messages.indexOf(currentMessage), currentMessage.edit(currentMessage.getContent() + toAdd));
-					} else {
-						messages.add(channel.sendMessage(getStringFromCharBuffer(MAX_MESSAGE_LENGTH)));
+					synchronized (messages) {
+						IMessage currentMessage = getCurrentMessage();
+						if (currentMessage != null) {
+							String toAdd = getStringFromCharBuffer(MAX_MESSAGE_LENGTH-currentMessage.getContent().length());
+							messages.set(messages.indexOf(currentMessage), currentMessage.edit(currentMessage.getContent()+toAdd));
+						} else {
+							messages.add(channel.sendMessage(getStringFromCharBuffer(MAX_MESSAGE_LENGTH)));
+						}
 					}
 				} catch (Exception e) {
 					if (e instanceof RateLimitException)
@@ -106,18 +109,21 @@ public class MessageOutputStream extends OutputStream {
 	}
 
 	private String getStringFromCharBuffer(int length) {
-		Queue<Character> buffer = buf.get();
-		if (length < 0)
-			length = buffer.size();
-
-		length = Math.min(length, buffer.size());
-
-		StringBuilder builder = new StringBuilder(length);
-		for (int i = 0; i < length; i++) {
-			builder.append(buffer.poll());
+		synchronized (buf) {
+			Queue<Character> buffer = buf.get();
+			
+			if (length < 0)
+				length = buffer.size();
+			
+			length = Math.min(length, buffer.size());
+			
+			StringBuilder builder = new StringBuilder(length);
+			for (int i = 0; i < length; i++) {
+				builder.append(buffer.poll());
+			}
+			
+			return builder.toString();
 		}
-
-		return builder.toString();
 	}
 
 	@Override
