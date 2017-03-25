@@ -138,6 +138,21 @@ public class ShardImpl implements IShard {
 	}
 
 	@Override
+	public void dnd(String playingText) {
+		updatePresence(StatusType.DND, playingText);
+	}
+
+	@Override
+	public void dnd() {
+		dnd(getClient().getOurUser().getPresence().getPlayingText().orElse(null));
+	}
+
+	@Override
+	public void invisible() {
+		updatePresence(StatusType.OFFLINE, null);
+	}
+
+	@Override
 	@Deprecated
 	public void changeStatus(Status status) {
 		// old functionality just in case

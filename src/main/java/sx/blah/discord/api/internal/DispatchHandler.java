@@ -28,14 +28,23 @@ import sx.blah.discord.handle.impl.events.*;
 import sx.blah.discord.handle.impl.events.guild.voice.user.UserVoiceChannelJoinEvent;
 import sx.blah.discord.handle.impl.events.guild.voice.user.UserVoiceChannelLeaveEvent;
 import sx.blah.discord.handle.impl.events.guild.voice.user.UserVoiceChannelMoveEvent;
-import sx.blah.discord.handle.impl.obj.*;
+import sx.blah.discord.handle.impl.obj.Channel;
+import sx.blah.discord.handle.impl.obj.Guild;
+import sx.blah.discord.handle.impl.obj.Message;
+import sx.blah.discord.handle.impl.obj.Reaction;
+import sx.blah.discord.handle.impl.obj.User;
+import sx.blah.discord.handle.impl.obj.VoiceChannel;
 import sx.blah.discord.handle.obj.*;
 import sx.blah.discord.util.LogMarkers;
 import sx.blah.discord.util.MessageList;
 import sx.blah.discord.util.RequestBuilder;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -59,59 +68,129 @@ class DispatchHandler {
 		String type = event.get("t").asText();
 		JsonNode json = event.get("d");
 		switch (type) {
-			case "RESUMED": resumed(); break;
-			case "READY": ready(MAPPER.treeToValue(json, ReadyResponse.class)); break;
-			case "MESSAGE_CREATE": messageCreate(MAPPER.treeToValue(json, MessageObject.class)); break;
-			case "TYPING_START": typingStart(MAPPER.treeToValue(json, TypingEventResponse.class)); break;
-			case "GUILD_CREATE":guildCreate(MAPPER.treeToValue(json, GuildObject.class)); break;
-			case "GUILD_MEMBER_ADD": guildMemberAdd(MAPPER.treeToValue(json, GuildMemberAddEventResponse.class)); break;
-			case "GUILD_MEMBER_REMOVE": guildMemberRemove(MAPPER.treeToValue(json, GuildMemberRemoveEventResponse.class)); break;
-			case "GUILD_MEMBER_UPDATE": guildMemberUpdate(MAPPER.treeToValue(json, GuildMemberUpdateEventResponse.class)); break;
-			case "MESSAGE_UPDATE": messageUpdate(MAPPER.treeToValue(json, MessageObject.class)); break;
-			case "MESSAGE_DELETE": messageDelete(MAPPER.treeToValue(json, MessageDeleteEventResponse.class)); break;
-			case "MESSAGE_DELETE_BULK": messageDeleteBulk(MAPPER.treeToValue(json, MessageDeleteBulkEventResponse.class)); break;
-			case "PRESENCE_UPDATE": presenceUpdate(MAPPER.treeToValue(json, PresenceUpdateEventResponse.class)); break;
-			case "GUILD_DELETE": guildDelete(MAPPER.treeToValue(json, GuildObject.class)); break;
-			case "CHANNEL_CREATE": channelCreate(json); break;
-			case "CHANNEL_DELETE": channelDelete(MAPPER.treeToValue(json, ChannelObject.class)); break;
-			case "CHANNEL_PINS_UPDATE": /* Implemented in MESSAGE_UPDATE. Ignored */ break;
-			case "CHANNEL_PINS_ACK": /* Ignored */ break;
-			case "USER_UPDATE": userUpdate(MAPPER.treeToValue(json, UserUpdateEventResponse.class)); break;
-			case "CHANNEL_UPDATE": channelUpdate(MAPPER.treeToValue(json, ChannelObject.class)); break;
-			case "GUILD_MEMBERS_CHUNK": guildMembersChunk(MAPPER.treeToValue(json, GuildMemberChunkEventResponse.class)); break;
-			case "GUILD_UPDATE": guildUpdate(MAPPER.treeToValue(json, GuildObject.class)); break;
-			case "GUILD_ROLE_CREATE": guildRoleCreate(MAPPER.treeToValue(json, GuildRoleEventResponse.class)); break;
-			case "GUILD_ROLE_UPDATE": guildRoleUpdate(MAPPER.treeToValue(json, GuildRoleEventResponse.class)); break;
-			case "GUILD_ROLE_DELETE": guildRoleDelete(MAPPER.treeToValue(json, GuildRoleDeleteEventResponse.class)); break;
-			case "GUILD_BAN_ADD": guildBanAdd(MAPPER.treeToValue(json, GuildBanEventResponse.class)); break;
-			case "GUILD_BAN_REMOVE": guildBanRemove(MAPPER.treeToValue(json, GuildBanEventResponse.class)); break;
-			case "GUILD_EMOJIS_UPDATE": guildEmojisUpdate(MAPPER.treeToValue(json, GuildEmojiUpdateResponse.class)); break;
-			case "GUILD_INTEGRATIONS_UPDATE": /* TODO: Impl Guild integrations */ break;
-			case "VOICE_STATE_UPDATE": voiceStateUpdate(MAPPER.treeToValue(json, VoiceStateObject.class)); break;
-			case "VOICE_SERVER_UPDATE": voiceServerUpdate(MAPPER.treeToValue(json, VoiceUpdateResponse.class)); break;
-			case "MESSAGE_REACTION_ADD": reactionAdd(MAPPER.treeToValue(json, ReactionEventResponse.class)); break;
-			case "MESSAGE_REACTION_REMOVE": reactionRemove(MAPPER.treeToValue(json, ReactionEventResponse.class)); break;
-			case "MESSAGE_REACTION_REMOVE_ALL": /* REMOVE_ALL is 204 empty but REACTION_REMOVE is sent anyway */ break;
-			case "WEBHOOKS_UPDATE": webhookUpdate(MAPPER.treeToValue(json, WebhookObject.class)); break;
+			case "RESUMED":
+				resumed();
+				break;
+			case "READY":
+				ready(MAPPER.treeToValue(json, ReadyResponse.class));
+				break;
+			case "MESSAGE_CREATE":
+				messageCreate(MAPPER.treeToValue(json, MessageObject.class));
+				break;
+			case "TYPING_START":
+				typingStart(MAPPER.treeToValue(json, TypingEventResponse.class));
+				break;
+			case "GUILD_CREATE":
+				guildCreate(MAPPER.treeToValue(json, GuildObject.class));
+				break;
+			case "GUILD_MEMBER_ADD":
+				guildMemberAdd(MAPPER.treeToValue(json, GuildMemberAddEventResponse.class));
+				break;
+			case "GUILD_MEMBER_REMOVE":
+				guildMemberRemove(MAPPER.treeToValue(json, GuildMemberRemoveEventResponse.class));
+				break;
+			case "GUILD_MEMBER_UPDATE":
+				guildMemberUpdate(MAPPER.treeToValue(json, GuildMemberUpdateEventResponse.class));
+				break;
+			case "MESSAGE_UPDATE":
+				messageUpdate(MAPPER.treeToValue(json, MessageObject.class));
+				break;
+			case "MESSAGE_DELETE":
+				messageDelete(MAPPER.treeToValue(json, MessageDeleteEventResponse.class));
+				break;
+			case "MESSAGE_DELETE_BULK":
+				messageDeleteBulk(MAPPER.treeToValue(json, MessageDeleteBulkEventResponse.class));
+				break;
+			case "PRESENCE_UPDATE":
+				presenceUpdate(MAPPER.treeToValue(json, PresenceUpdateEventResponse.class));
+				break;
+			case "GUILD_DELETE":
+				guildDelete(MAPPER.treeToValue(json, GuildObject.class));
+				break;
+			case "CHANNEL_CREATE":
+				channelCreate(json);
+				break;
+			case "CHANNEL_DELETE":
+				channelDelete(MAPPER.treeToValue(json, ChannelObject.class));
+				break;
+			case "CHANNEL_PINS_UPDATE": /* Implemented in MESSAGE_UPDATE. Ignored */
+				break;
+			case "CHANNEL_PINS_ACK": /* Ignored */
+				break;
+			case "USER_UPDATE":
+				userUpdate(MAPPER.treeToValue(json, UserUpdateEventResponse.class));
+				break;
+			case "CHANNEL_UPDATE":
+				channelUpdate(MAPPER.treeToValue(json, ChannelObject.class));
+				break;
+			case "GUILD_MEMBERS_CHUNK":
+				guildMembersChunk(MAPPER.treeToValue(json, GuildMemberChunkEventResponse.class));
+				break;
+			case "GUILD_UPDATE":
+				guildUpdate(MAPPER.treeToValue(json, GuildObject.class));
+				break;
+			case "GUILD_ROLE_CREATE":
+				guildRoleCreate(MAPPER.treeToValue(json, GuildRoleEventResponse.class));
+				break;
+			case "GUILD_ROLE_UPDATE":
+				guildRoleUpdate(MAPPER.treeToValue(json, GuildRoleEventResponse.class));
+				break;
+			case "GUILD_ROLE_DELETE":
+				guildRoleDelete(MAPPER.treeToValue(json, GuildRoleDeleteEventResponse.class));
+				break;
+			case "GUILD_BAN_ADD":
+				guildBanAdd(MAPPER.treeToValue(json, GuildBanEventResponse.class));
+				break;
+			case "GUILD_BAN_REMOVE":
+				guildBanRemove(MAPPER.treeToValue(json, GuildBanEventResponse.class));
+				break;
+			case "GUILD_EMOJIS_UPDATE":
+				guildEmojisUpdate(MAPPER.treeToValue(json, GuildEmojiUpdateResponse.class));
+				break;
+			case "GUILD_INTEGRATIONS_UPDATE": /* TODO: Impl Guild integrations */
+				break;
+			case "VOICE_STATE_UPDATE":
+				voiceStateUpdate(MAPPER.treeToValue(json, VoiceStateObject.class));
+				break;
+			case "VOICE_SERVER_UPDATE":
+				voiceServerUpdate(MAPPER.treeToValue(json, VoiceUpdateResponse.class));
+				break;
+			case "MESSAGE_REACTION_ADD":
+				reactionAdd(MAPPER.treeToValue(json, ReactionEventResponse.class));
+				break;
+			case "MESSAGE_REACTION_REMOVE":
+				reactionRemove(MAPPER.treeToValue(json, ReactionEventResponse.class));
+				break;
+			case "MESSAGE_REACTION_REMOVE_ALL": /* REMOVE_ALL is 204 empty but REACTION_REMOVE is sent anyway */
+				break;
+			case "WEBHOOKS_UPDATE":
+				webhookUpdate(MAPPER.treeToValue(json, WebhookObject.class));
+				break;
 
 			default:
-				Discord4J.LOGGER.warn(LogMarkers.WEBSOCKET, "Unknown message received: {}, REPORT THIS TO THE DISCORD4J DEV!", type);
+				Discord4J.LOGGER
+						.warn(LogMarkers.WEBSOCKET, "Unknown message received: {}, REPORT THIS TO THE DISCORD4J DEV!",
+								type);
 		}
 	}
 
 	private void ready(ReadyResponse ready) {
-		Discord4J.LOGGER.info(LogMarkers.WEBSOCKET, "Connected to Discord Gateway v{}. Receiving {} guilds.", ready.v, ready.guilds.length);
+		Discord4J.LOGGER.info(LogMarkers.WEBSOCKET, "Connected to Discord Gateway v{}. Receiving {} guilds.", ready.v,
+				ready.guilds.length);
 
 		ws.state = DiscordWS.State.READY;
 		ws.hasReceivedReady = true; // Websocket received actual ready event
-		if (client.ourUser == null) client.ourUser = DiscordUtils.getUserFromJSON(shard, ready.user);
+		if (client.ourUser == null)
+			client.ourUser = DiscordUtils.getUserFromJSON(shard, ready.user);
 		client.getDispatcher().dispatch(new LoginEvent(shard));
 
 		new RequestBuilder(client).setAsync(true).doAction(() -> {
 			ws.sessionId = ready.session_id;
 
 			if (MessageList.getEfficiency(client) == null) //User did not manually set the efficiency
-				MessageList.setEfficiency(client, MessageList.EfficiencyLevel.getEfficiencyForGuilds(ready.guilds.length));
+				MessageList
+						.setEfficiency(client, MessageList.EfficiencyLevel.getEfficiencyForGuilds(ready.guilds
+								.length));
 
 			Set<UnavailableGuildObject> waitingGuilds = ConcurrentHashMap.newKeySet(ready.guilds.length);
 			waitingGuilds.addAll(Arrays.asList(ready.guilds));
@@ -126,13 +205,13 @@ class DispatchHandler {
 			return true;
 		}).andThen(() -> {
 			if (this.shard.getInfo()[0] == 0) { // pms are only sent to shard one
-				Arrays.stream(ready.private_channels)
-						.map(pm -> DiscordUtils.getPrivateChannelFromJSON(shard, pm))
+				Arrays.stream(ready.private_channels).map(pm -> DiscordUtils.getPrivateChannelFromJSON(shard, pm))
 						.forEach(shard.privateChannels::add);
 			}
 
 			ws.isReady = true;
-			client.getDispatcher().dispatch(new ShardReadyEvent(shard)); // All information for this shard has been received
+			client.getDispatcher()
+					.dispatch(new ShardReadyEvent(shard)); // All information for this shard has been received
 			return true;
 		}).execute();
 	}
@@ -161,7 +240,8 @@ class DispatchHandler {
 
 			if (!mentioned) { //Not worth checking if already mentioned
 				for (String role : json.mention_roles) { //Check roles for a mention
-					if (client.getOurUser().getRolesForGuild(channel.getGuild()).contains(channel.getGuild().getRoleByID(role))) {
+					if (client.getOurUser().getRolesForGuild(channel.getGuild())
+							.contains(channel.getGuild().getRoleByID(role))) {
 						mentioned = true;
 						break;
 					}
@@ -171,16 +251,16 @@ class DispatchHandler {
 			IMessage message = DiscordUtils.getMessageFromJSON(channel, json);
 
 			if (!channel.getMessageHistory().contains(message)) {
-				Discord4J.LOGGER.debug(LogMarkers.MESSAGES, "Message from: {} ({}) in channel ID {}: {}", message.getAuthor().getName(),
-						json.author.id, json.channel_id, json.content);
+				Discord4J.LOGGER.debug(LogMarkers.MESSAGES, "Message from: {} ({}) in channel ID {}: {}",
+						message.getAuthor().getName(), json.author.id, json.channel_id, json.content);
 
 				List<String> inviteCodes = DiscordUtils.getInviteCodesFromMessage(json.content);
 				if (!inviteCodes.isEmpty()) {
-					List<IInvite> invites = inviteCodes.stream()
-							.map(s -> client.getInviteForCode(s))
-							.filter(Objects::nonNull)
-							.collect(Collectors.toList());
-					if (!invites.isEmpty()) client.getDispatcher().dispatch(new InviteReceivedEvent(invites.toArray(new IInvite[invites.size()]), message));
+					List<IInvite> invites = inviteCodes.stream().map(s -> client.getInviteForCode(s))
+							.filter(Objects::nonNull).collect(Collectors.toList());
+					if (!invites.isEmpty())
+						client.getDispatcher().dispatch(
+								new InviteReceivedEvent(invites.toArray(new IInvite[invites.size()]), message));
 				}
 
 				if (mentioned) {
@@ -220,7 +300,9 @@ class DispatchHandler {
 
 	private void guildCreate(GuildObject json) {
 		if (json.unavailable) { //Guild can't be reached, so we ignore it
-			Discord4J.LOGGER.warn(LogMarkers.WEBSOCKET, "Guild with id {} is unavailable, ignoring it. Is there an outage?", json.id);
+			Discord4J.LOGGER
+					.warn(LogMarkers.WEBSOCKET, "Guild with id {} is unavailable, ignoring it. Is there an outage?",
+							json.id);
 			return;
 		}
 
@@ -231,14 +313,17 @@ class DispatchHandler {
 			try {
 				guild.loadWebhooks();
 				if (json.large) {
-					client.getDispatcher().waitFor((AllUsersReceivedEvent e) ->
-							e.getGuild().getID().equals(guild.getID())
-					);
+					client.getDispatcher()
+							.waitFor((AllUsersReceivedEvent e) -> e.getGuild().getID().equals(guild.getID()));
 				}
 				client.dispatcher.dispatch(new GuildCreateEvent(guild));
-				Discord4J.LOGGER.debug(LogMarkers.EVENTS, "New guild has been created/joined! \"{}\" with ID {} on shard {}.", guild.getName(), guild.getID(), shard.getInfo()[0]);
+				Discord4J.LOGGER
+						.debug(LogMarkers.EVENTS, "New guild has been created/joined! \"{}\" with ID {} on shard {}.",
+								guild.getName(), guild.getID(), shard.getInfo()[0]);
 			} catch (InterruptedException e) {
-				Discord4J.LOGGER.error(LogMarkers.EVENTS, "Wait for AllUsersReceivedEvent on guild create was interrupted.", e);
+				Discord4J.LOGGER
+						.error(LogMarkers.EVENTS, "Wait for AllUsersReceivedEvent on guild create was interrupted.",
+								e);
 			}
 			return true;
 		}).execute();
@@ -248,11 +333,13 @@ class DispatchHandler {
 		String guildID = event.guild_id;
 		Guild guild = (Guild) client.getGuildByID(guildID);
 		if (guild != null) {
-			User user = (User) DiscordUtils.getUserFromGuildMemberResponse(guild, new MemberObject(event.user, event.roles));
+			User user = (User) DiscordUtils
+					.getUserFromGuildMemberResponse(guild, new MemberObject(event.user, event.roles));
 			guild.addUser(user);
 			guild.setTotalMemberCount(guild.getTotalMemberCount() + 1);
 			LocalDateTime timestamp = DiscordUtils.convertFromTimestamp(event.joined_at);
-			Discord4J.LOGGER.debug(LogMarkers.EVENTS, "User \"{}\" joined guild \"{}\".", user.getName(), guild.getName());
+			Discord4J.LOGGER
+					.debug(LogMarkers.EVENTS, "User \"{}\" joined guild \"{}\".", user.getName(), guild.getName());
 			client.dispatcher.dispatch(new UserJoinEvent(guild, user, timestamp));
 		}
 	}
@@ -266,7 +353,8 @@ class DispatchHandler {
 				guild.getUsers().remove(user);
 				guild.getJoinTimes().remove(user);
 				guild.setTotalMemberCount(guild.getTotalMemberCount() - 1);
-				Discord4J.LOGGER.debug(LogMarkers.EVENTS, "User \"{}\" has been removed from or left guild \"{}\".", user.getName(), guild.getName());
+				Discord4J.LOGGER.debug(LogMarkers.EVENTS, "User \"{}\" has been removed from or left guild \"{}\".",
+						user.getName(), guild.getName());
 				client.dispatcher.dispatch(new UserLeaveEvent(guild, user));
 			}
 		}
@@ -301,7 +389,8 @@ class DispatchHandler {
 
 				user.addRole(guild.getID(), guild.getEveryoneRole());
 
-				client.dispatcher.dispatch(new UserRoleUpdateEvent(guild, user, oldRoles, user.getRolesForGuild(guild)));
+				client.dispatcher
+						.dispatch(new UserRoleUpdateEvent(guild, user, oldRoles, user.getRolesForGuild(guild)));
 
 				if (user.equals(client.getOurUser()))
 					guild.loadWebhooks();
@@ -370,7 +459,9 @@ class DispatchHandler {
 		if (guild != null) {
 			User user = (User) guild.getUserByID(event.user.id);
 			if (user != null) {
-				if (event.user.username != null) { //Full object was sent so there is a user change, otherwise all user fields but id would be null
+				if (event.user.username !=
+						null) { //Full object was sent so there is a user change, otherwise all user fields but id
+					// would be null
 					IUser oldUser = user.copy();
 					user = DiscordUtils.getUserFromJSON(shard, event.user);
 					client.dispatcher.dispatch(new UserUpdateEvent(oldUser, user));
@@ -380,7 +471,8 @@ class DispatchHandler {
 					IPresence oldPresence = user.getPresence();
 					user.setPresence(presence);
 					client.dispatcher.dispatch(new PresenceUpdateEvent(user, oldPresence, presence));
-					Discord4J.LOGGER.debug(LogMarkers.PRESENCES, "User \"{}\" changed presence to {}", user.getName(), user.getPresence());
+					Discord4J.LOGGER.debug(LogMarkers.PRESENCES, "User \"{}\" changed presence to {}", user.getName(),
+							user.getPresence());
 				}
 			}
 		}
@@ -399,7 +491,8 @@ class DispatchHandler {
 		}
 
 		if (json.unavailable) { //Guild can't be reached
-			Discord4J.LOGGER.warn(LogMarkers.WEBSOCKET, "Guild with id {} is unavailable, is there an outage?", json.id);
+			Discord4J.LOGGER
+					.warn(LogMarkers.WEBSOCKET, "Guild with id {} is unavailable, is there an outage?", json.id);
 			client.dispatcher.dispatch(new GuildUnavailableEvent(json.id));
 		} else {
 			Discord4J.LOGGER.debug(LogMarkers.EVENTS, "You have been kicked from or left \"{}\"! :O", guild.getName());
@@ -426,14 +519,14 @@ class DispatchHandler {
 
 		} else { // Regular channel.
 			ChannelObject event = MAPPER.treeToValue(json, ChannelObject.class);
-			String type = event.type;
+			int type = event.type;
 			Guild guild = (Guild) client.getGuildByID(event.guild_id);
 			if (guild != null) {
-				if (type.equalsIgnoreCase("text")) { //Text channel
+				if (type == 0) { //Text channel
 					Channel channel = (Channel) DiscordUtils.getChannelFromJSON(guild, event);
 					guild.addChannel(channel);
 					client.dispatcher.dispatch(new ChannelCreateEvent(channel));
-				} else if (type.equalsIgnoreCase("voice")) {
+				} else if (type == 2) {
 					VoiceChannel channel = (VoiceChannel) DiscordUtils.getVoiceChannelFromJSON(guild, event);
 					guild.addVoiceChannel(channel);
 					client.dispatcher.dispatch(new VoiceChannelCreateEvent(channel));
@@ -443,7 +536,7 @@ class DispatchHandler {
 	}
 
 	private void channelDelete(ChannelObject json) {
-		if (json.type.equalsIgnoreCase("text")) {
+		if (json.type == 0) {
 			Channel channel = (Channel) client.getChannelByID(json.id);
 			if (channel != null) {
 				if (!channel.isPrivate())
@@ -452,7 +545,7 @@ class DispatchHandler {
 					shard.privateChannels.remove(channel);
 				client.dispatcher.dispatch(new ChannelDeleteEvent(channel));
 			}
-		} else if (json.type.equalsIgnoreCase("voice")) {
+		} else if (json.type == 2) {
 			VoiceChannel channel = (VoiceChannel) client.getVoiceChannelByID(json.id);
 			if (channel != null) {
 				channel.getGuild().getVoiceChannels().remove(channel);
@@ -471,27 +564,25 @@ class DispatchHandler {
 	}
 
 	private void channelUpdate(ChannelObject json) {
-		if (!json.is_private) {
-			if (json.type.equalsIgnoreCase("text")) {
-				Channel toUpdate = (Channel) client.getChannelByID(json.id);
-				if (toUpdate != null) {
-					IChannel oldChannel = toUpdate.copy();
+		if (json.type == 0) {
+			Channel toUpdate = (Channel) client.getChannelByID(json.id);
+			if (toUpdate != null) {
+				IChannel oldChannel = toUpdate.copy();
 
-					toUpdate = (Channel) DiscordUtils.getChannelFromJSON(toUpdate.getGuild(), json);
+				toUpdate = (Channel) DiscordUtils.getChannelFromJSON(toUpdate.getGuild(), json);
 
-					toUpdate.loadWebhooks();
+				toUpdate.loadWebhooks();
 
-					client.getDispatcher().dispatch(new ChannelUpdateEvent(oldChannel, toUpdate));
-				}
-			} else if (json.type.equalsIgnoreCase("voice")) {
-				VoiceChannel toUpdate = (VoiceChannel) client.getVoiceChannelByID(json.id);
-				if (toUpdate != null) {
-					VoiceChannel oldChannel = (VoiceChannel) toUpdate.copy();
+				client.getDispatcher().dispatch(new ChannelUpdateEvent(oldChannel, toUpdate));
+			}
+		} else if (json.type == 2) {
+			VoiceChannel toUpdate = (VoiceChannel) client.getVoiceChannelByID(json.id);
+			if (toUpdate != null) {
+				VoiceChannel oldChannel = (VoiceChannel) toUpdate.copy();
 
-					toUpdate = (VoiceChannel) DiscordUtils.getVoiceChannelFromJSON(toUpdate.getGuild(), json);
+				toUpdate = (VoiceChannel) DiscordUtils.getVoiceChannelFromJSON(toUpdate.getGuild(), json);
 
-					client.getDispatcher().dispatch(new VoiceChannelUpdateEvent(oldChannel, toUpdate));
-				}
+				client.getDispatcher().dispatch(new VoiceChannelUpdateEvent(oldChannel, toUpdate));
 			}
 		}
 	}
@@ -499,7 +590,10 @@ class DispatchHandler {
 	private void guildMembersChunk(GuildMemberChunkEventResponse event) {
 		Guild guildToUpdate = (Guild) client.getGuildByID(event.guild_id);
 		if (guildToUpdate == null) {
-			Discord4J.LOGGER.warn(LogMarkers.WEBSOCKET, "Can't receive guild members chunk for guild id {}, the guild is null!", event.guild_id);
+			Discord4J.LOGGER
+					.warn(LogMarkers.WEBSOCKET, "Can't receive guild members chunk for guild id {}, the guild is " +
+									"null!",
+							event.guild_id);
 			return;
 		}
 
@@ -521,7 +615,8 @@ class DispatchHandler {
 			toUpdate = (Guild) DiscordUtils.getGuildFromJSON(shard, json);
 
 			if (!toUpdate.getOwnerID().equals(oldGuild.getOwnerID())) {
-				client.dispatcher.dispatch(new GuildTransferOwnershipEvent(oldGuild.getOwner(), toUpdate.getOwner(), toUpdate));
+				client.dispatcher
+						.dispatch(new GuildTransferOwnershipEvent(oldGuild.getOwner(), toUpdate.getOwner(), toUpdate));
 			} else {
 				client.dispatcher.dispatch(new GuildUpdateEvent(oldGuild, toUpdate));
 			}
@@ -591,7 +686,8 @@ class DispatchHandler {
 		IVoiceChannel channel = shard.getVoiceChannelByID(json.channel_id);
 		IVoiceChannel oldChannel = curVoiceState == null ? null : curVoiceState.getChannel();
 
-		user.getVoiceStates().put(json.guild_id, DiscordUtils.getVoiceStateFromJson(shard.getGuildByID(json.guild_id), json));
+		user.getVoiceStates()
+				.put(json.guild_id, DiscordUtils.getVoiceStateFromJson(shard.getGuildByID(json.guild_id), json));
 
 		if (oldChannel != channel) {
 			if (channel == null) {
@@ -656,8 +752,7 @@ class DispatchHandler {
 
 				reaction.setMessage(message);
 
-				client.dispatcher.dispatch(
-						new ReactionAddEvent(message, reaction, user));
+				client.dispatcher.dispatch(new ReactionAddEvent(message, reaction, user));
 			}
 		}
 	}

@@ -394,6 +394,7 @@ public class DiscordUtils {
 			}
 		}
 		if (channel == null) {
+			System.out.println(shard.getClient() + " " + recipient + " " + id);
 			channel = new PrivateChannel((DiscordClientImpl) shard.getClient(), recipient, id);
 		}
 

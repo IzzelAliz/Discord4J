@@ -27,6 +27,7 @@ import org.slf4j.helpers.NOPLoggerFactory;
 import sx.blah.discord.api.ClientBuilder;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.events.IListener;
+import sx.blah.discord.api.internal.DiscordUtils;
 import sx.blah.discord.handle.impl.events.ReadyEvent;
 import sx.blah.discord.modules.Configuration;
 import sx.blah.discord.util.DiscordException;
@@ -157,7 +158,7 @@ public class Discord4J {
 		if (branch.equals("master"))
 			VERSION = properties.getProperty("application.version");
 		else
-			VERSION = String.format("%s (%s-%s)", properties.getProperty("application.version"), branch, properties.getProperty("application.git.commit"));
+			VERSION = String.format("%s (%s-%s) gateway v" + DiscordUtils.GATEWAY_VERSION, properties.getProperty("application.version"), branch, properties.getProperty("application.git.commit"));
 		DESCRIPTION = properties.getProperty("application.description");
 		URL = properties.getProperty("application.url");
 

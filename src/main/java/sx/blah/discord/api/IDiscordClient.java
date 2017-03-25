@@ -156,6 +156,25 @@ public interface IDiscordClient {
 	void streaming(String playingText, String streamingUrl);
 
 	/**
+	 * Set this user's presence to be in do not disturb mode, using the provided playing text.
+	 * Note that this doesn't stop events from occurring.
+	 *
+	 * @param playingText The game playing text
+	 */
+	void dnd(String playingText);
+
+	/**
+	 * Set this user's presence to be in do not disturb mode, using the original playing text (if any).
+	 * Note that this doesn't stop events from occurring.
+	 */
+	void dnd();
+
+	/**
+	 * Set this user's presence to be invisible (appear offline to others).
+	 */
+	void invisible();
+
+	/**
 	 * Checks if the api is ready to be interacted with on all shards.
 	 * @see IShard#isReady()
 	 *

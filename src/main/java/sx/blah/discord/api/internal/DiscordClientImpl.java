@@ -383,6 +383,21 @@ public final class DiscordClientImpl implements IDiscordClient {
 	}
 
 	@Override
+	public void dnd(String playingText) {
+		getShards().forEach(s -> s.dnd(playingText));
+	}
+
+	@Override
+	public void dnd() {
+		getShards().forEach(IShard::dnd);
+	}
+
+	@Override
+	public void invisible() {
+		getShards().forEach(IShard::invisible);
+	}
+
+	@Override
 	public List<IGuild> getGuilds() {
 		return getShards().stream()
 				.map(IShard::getGuilds)
