@@ -383,6 +383,9 @@ public class DiscordUtils {
 	public static IPrivateChannel getPrivateChannelFromJSON(IShard shard, PrivateChannelObject json) {
 		String id = json.id;
 		List<IUser> recipients = new CopyOnWriteArrayList<>();
+		if (json.recipients.length > 1) {
+			Discord4J.LOGGER.warn("Multiple users in DM - shouldn't happen! (" + json.recipients.length + ")");
+		}
 		for (UserObject uobj : json.recipients) {
 			User u = (User) shard.getUserByID(uobj.id);
 			if (u == null) {
