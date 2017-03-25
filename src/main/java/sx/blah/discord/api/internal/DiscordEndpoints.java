@@ -40,7 +40,7 @@ public final class DiscordEndpoints {
 	/**
 	 * The base API location on Discord's servers.
 	 */
-	public static final String APIBASE = BASE+"api";
+	public static final String APIBASE = BASE+"api/v" + DiscordUtils.GATEWAY_VERSION;
 
 	public static final String GATEWAY = APIBASE+"/gateway";
 
