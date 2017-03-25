@@ -108,6 +108,11 @@ public class DiscordUtils {
 	public static final BigInteger DISCORD_EPOCH = new BigInteger("1420070400000");
 
 	/**
+	 * The gateway version to use.
+	 */
+	public static final String GATEWAY_VERSION = "6";
+
+	/**
 	 * Converts a String timestamp into a java object timestamp.
 	 *
 	 * @param time The String timestamp.
