@@ -27,15 +27,15 @@ public class PrivateChannelObject {
 	 */
 	public String last_message_id;
 	/**
-	 * the recipient of the channel.
+	 * the recipient(s) of the channel.
 	 */
-	public UserObject recipient;
+	public UserObject[] recipients;
 	/**
 	 * The id of the channel.
 	 */
 	public String id;
 	/**
-	 * Whether the channel is private.
+	 * The type of this channel. TEXT, DM, VOICE, GROUP_DM -> 0, 1, 2, 3
 	 */
-	public boolean is_private;
+	public int type;
 }

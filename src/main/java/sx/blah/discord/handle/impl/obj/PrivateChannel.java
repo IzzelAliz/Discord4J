@@ -24,18 +24,24 @@ import sx.blah.discord.util.Image;
 import sx.blah.discord.util.MissingPermissionsException;
 import sx.blah.discord.util.RateLimitException;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class PrivateChannel extends Channel implements IPrivateChannel {
 
 	/**
-	 * The recipient of this private channel.
+	 * The recipients of this private channel.
 	 */
-	protected final IUser recipient;
+	protected final List<IUser> recipients;
 
-	public PrivateChannel(DiscordClientImpl client, IUser recipient, String id) {
-		super(client, recipient.getName(), id, null, null, 0, new HashMap<>(), new HashMap<>());
-		this.recipient = recipient;
+	public PrivateChannel(DiscordClientImpl client, List<IUser> recipients, String id) {
+		super(client, recipients.stream().map(IUser::getName).collect(Collectors.joining(", ")), id, null, null, 0,
+				new HashMap<>(), new HashMap<>());
+		this.recipients = recipients;
 	}
 
 	@Override
@@ -50,7 +56,7 @@ public class PrivateChannel extends Channel implements IPrivateChannel {
 
 	@Override
 	public EnumSet<Permissions> getModifiedPermissions(IUser user) {
-		if (user != null && (user.equals(recipient) || user.equals(client.getOurUser())))
+		if (user != null && (recipients.contains(user) || user.equals(client.getOurUser())))
 			return EnumSet.allOf(Permissions.class);
 
 		return EnumSet.noneOf(Permissions.class);
@@ -128,7 +134,11 @@ public class PrivateChannel extends Channel implements IPrivateChannel {
 
 	@Override
 	public String mention() {
-		return recipient.mention();
+		if (recipients.size() == 1) {
+			return recipients.get(0).mention();
+		} else {
+			return "<#" + getID() + ">";
+		}
 	}
 
 	@Override
@@ -153,7 +163,7 @@ public class PrivateChannel extends Channel implements IPrivateChannel {
 
 	@Override
 	public String getName() {
-		return recipient.getName();
+		return name;
 	}
 
 	@Override
@@ -203,22 +213,22 @@ public class PrivateChannel extends Channel implements IPrivateChannel {
 
 	@Override
 	public List<IUser> getUsersHere() {
-		return Collections.singletonList(recipient);
+		return recipients;
 	}
 
 	@Override
 	public IUser getRecipient() {
-		return recipient;
+		return recipients.get(0);
 	}
 
 	@Override
 	public String toString() {
-		return recipient.toString();
+		return name;
 	}
 
 	@Override
 	public IPrivateChannel copy() {
-		return new PrivateChannel(client, recipient, id);
+		return new PrivateChannel(client, recipients, id);
 	}
 
 	@Override

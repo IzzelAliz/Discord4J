@@ -382,20 +382,25 @@ public class DiscordUtils {
 	 */
 	public static IPrivateChannel getPrivateChannelFromJSON(IShard shard, PrivateChannelObject json) {
 		String id = json.id;
-		User recipient = (User) shard.getUserByID(id);
-		if (recipient == null)
-			recipient = getUserFromJSON(shard, json.recipient);
+		List<IUser> recipients = new CopyOnWriteArrayList<>();
+		for (UserObject uobj : json.recipients) {
+			User u = (User) shard.getUserByID(uobj.id);
+			if (u == null) {
+				u = getUserFromJSON(shard, uobj);
+			}
+
+			recipients.add(u);
+		}
 
 		PrivateChannel channel = null;
 		for (IPrivateChannel privateChannel : ((ShardImpl) shard).privateChannels) {
-			if (privateChannel.getRecipient().equals(recipient)) {
+			if (privateChannel.getRecipient().equals(recipients.get(0))) {
 				channel = (PrivateChannel) privateChannel;
 				break;
 			}
 		}
 		if (channel == null) {
-			System.out.println(shard.getClient() + " " + recipient + " " + id);
-			channel = new PrivateChannel((DiscordClientImpl) shard.getClient(), recipient, id);
+			channel = new PrivateChannel((DiscordClientImpl) shard.getClient(), recipients, id);
 		}
 
 		return channel;
