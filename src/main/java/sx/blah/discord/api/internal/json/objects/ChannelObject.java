@@ -34,17 +34,13 @@ public class ChannelObject {
 	 */
 	public String name;
 	/**
-	 * The type of the channel.
-	 */
-	public String type;
-	/**
 	 * The position of the channel.
 	 */
 	public int position;
 	/**
-	 * Whether the channel is private or not.
+	 * The channel type. TEXT, DM, VOICE, GROUP_DM -> 0, 1, 2, 3
 	 */
-	public boolean is_private;
+	public int type;
 	/**
 	 * Array of permission overwrites.
 	 */

@@ -287,10 +287,10 @@ public class DiscordUtils {
 
 			if (json.channels != null)
 				for (ChannelObject channelResponse : json.channels) {
-					String channelType = channelResponse.type;
-					if (channelType.equalsIgnoreCase("text")) {
+					int channelType = channelResponse.type;
+					if (channelType == 0) {
 						guild.addChannel(getChannelFromJSON(guild, channelResponse));
-					} else if (channelType.equalsIgnoreCase("voice")) {
+					} else if (channelType == 2) {
 						guild.addVoiceChannel(getVoiceChannelFromJSON(guild, channelResponse));
 					}
 				}
