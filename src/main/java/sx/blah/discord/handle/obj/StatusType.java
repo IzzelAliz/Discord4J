@@ -25,27 +25,36 @@ public enum StatusType {
 	/**
 	 * Represents that the user is online.
 	 */
-	ONLINE,
+	ONLINE("online"),
 	/**
 	 * Represents that the user is idle.
 	 */
-	IDLE,
+	IDLE("idle"),
 	/**
 	 * Represents that the user is offline.
 	 */
-	OFFLINE,
+	OFFLINE("invisible"),
 	/**
 	 * Represents that the user is streaming.
 	 */
-	STREAMING,
+	STREAMING(null),
 	/**
 	 * Represents that the user is in 'do not disturb' mode.
 	 */
-	DND,
+	DND("dnd"),
 	/**
 	 * Unknown presence.
 	 */
-	UNKNOWN;
+	UNKNOWN(null);
+
+	/**
+	 * Used in PresenceUpdateRequest
+	 */
+	public final String statusInRequest;
+
+	StatusType(String statusInRequest) {
+		this.statusInRequest = statusInRequest;
+	}
 
 	public static StatusType get(String name) {
 		try {

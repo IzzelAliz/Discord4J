@@ -22,26 +22,39 @@ import sx.blah.discord.handle.obj.IPresence;
 import sx.blah.discord.handle.obj.StatusType;
 
 public class PresenceUpdateRequest {
+
 	/**
-	 * The time (in epoch milliseconds) since the user became idle or null if not idle
+	 * If the user is AFK.
 	 */
-	public Long idle_since; // This must be the boxed Long because it can be null
+	public boolean afk = false;
+
+	/**
+	 * The time (in epoch milliseconds) since the user became AFK or null if not AFK
+	 */
+	public Long since; // This must be the boxed Long because it can be null
 
 	/**
 	 * The game the user is playing, or null if no game
 	 */
 	public GameObject game;
 
-	public PresenceUpdateRequest(Long idle_since, GameObject obj) {
-		this.idle_since = idle_since;
+	/**
+	 * The status type. Can be online, invisible, dnd, idle
+	 */
+	public String status;
+
+	public PresenceUpdateRequest(Long since, GameObject obj, String status) {
+		this.since = since;
+		this.afk = since != null;
 		this.game = obj;
+		this.status = status;
 	}
 
-	public PresenceUpdateRequest(Long idle_since, IPresence presence) {
-		this(idle_since, new GameObject(presence.getPlayingText().orElse(null),
-				presence.getStreamingUrl().orElse(null),
-				presence.getStatus() == StatusType.STREAMING
-						? GameObject.STREAMING
-						: (presence.getPlayingText().isPresent() ? GameObject.GAME : GameObject.NONE)));
+	public PresenceUpdateRequest(Long since, IPresence presence) {
+		this(since, new GameObject(presence.getPlayingText().orElse(null), presence.getStreamingUrl().orElse(null),
+						presence.getStatus() == StatusType.STREAMING
+								? GameObject.STREAMING
+								: (presence.getPlayingText().isPresent() ? GameObject.GAME : GameObject.NONE)),
+				presence.getStatus().statusInRequest);
 	}
 }
